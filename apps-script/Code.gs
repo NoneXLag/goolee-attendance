@@ -34,7 +34,11 @@ function doGet(e) {
 function doPost(e) {
   let body;
   try {
-    body = JSON.parse(e.postData.contents);
+    if (e.parameter && e.parameter.action) {
+      body = e.parameter;
+    } else {
+      body = JSON.parse(e.postData.contents);
+    }
   } catch (err) {
     return respond({ ok: false, message: 'Malformed request.' });
   }

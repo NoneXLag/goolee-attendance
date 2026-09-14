@@ -906,18 +906,19 @@
     clockOutBtn.disabled = true;
 
     try{
+      const payload = new URLSearchParams({
+        action: 'punch',
+        name,
+        pin,
+        punchType: action,
+        lat: String(currentPosition.lat),
+        lng: String(currentPosition.lng),
+        accuracy: String(currentPosition.accuracy)
+      });
+
       const res = await fetch(CONFIG.API_URL, {
         method: 'POST',
-        headers: { 'Content-Type': 'text/plain;charset=utf-8' }, // avoids CORS preflight on Apps Script
-        body: JSON.stringify({
-          action: 'punch',
-          name,
-          pin,
-          punchType: action,
-          lat: currentPosition.lat,
-          lng: currentPosition.lng,
-          accuracy: currentPosition.accuracy
-        })
+        body: payload
       });
       const data = await res.json();
 

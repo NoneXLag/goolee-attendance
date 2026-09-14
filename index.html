@@ -2,8 +2,8 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Goolee.my Attendance Clock</title>
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Goolee.my — Attendance Clock</title>
 <meta name="description" content="Clock in and out with GPS-verified location.">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -30,162 +30,98 @@
   *{ box-sizing:border-box; }
   html{ min-width:320px; }
   body{
-    margin:0;
-    min-height:100svh;
-    background:linear-gradient(135deg, #F8FAF9 0%, var(--bg) 48%, #E7EEEB 100%);
-    font-family:'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    margin:0; min-height:100svh;
+    background:linear-gradient(135deg,#F8FAF9 0%,var(--bg) 48%,#E7EEEB 100%);
+    font-family:'Inter',-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;
     color:var(--ink);
-    display:flex;
-    align-items:center;
-    justify-content:center;
-    padding:clamp(18px, 4vw, 48px) 16px;
+    display:flex; align-items:center; justify-content:center;
+    padding:clamp(18px,4vw,48px) 16px;
     -webkit-font-smoothing:antialiased;
-    text-rendering:optimizeLegibility;
   }
   .card{
-    width:100%;
-    max-width:840px;
+    width:100%; max-width:840px;
     background:var(--surface);
-    border:1px solid var(--border);
-    border-radius:var(--radius);
-    box-shadow:var(--shadow);
-    overflow:hidden;
+    border:1px solid var(--border); border-radius:var(--radius);
+    box-shadow:var(--shadow); overflow:hidden;
   }
   .brand{
-    display:flex;
-    align-items:center;
-    justify-content:space-between;
-    gap:18px;
-    padding:30px 34px;
-    background:linear-gradient(135deg, var(--teal-deep), var(--teal));
+    display:flex; align-items:center; justify-content:space-between;
+    gap:18px; padding:30px 34px;
+    background:linear-gradient(135deg,var(--teal-deep),var(--teal));
     color:#fff;
   }
   .brand::after{
-    content:"GPS verified";
-    flex-shrink:0;
-    border:1px solid rgba(255,255,255,.24);
-    border-radius:999px;
-    padding:8px 12px;
-    color:rgba(255,255,255,.9);
+    content:"GPS verified"; flex-shrink:0;
+    border:1px solid rgba(255,255,255,.24); border-radius:999px;
+    padding:8px 12px; color:rgba(255,255,255,.9);
     background:rgba(255,255,255,.12);
-    font-size:12px;
-    font-weight:700;
+    font-size:12px; font-weight:700;
   }
   .brand-mark{
-    width:48px; height:48px;
-    border-radius:12px;
-    background:#fff;
-    color:var(--teal-deep);
+    width:48px; height:48px; border-radius:12px;
+    background:#fff; color:var(--teal-deep);
     display:flex; align-items:center; justify-content:center;
-    font-family:'Fraunces', serif;
-    font-weight:600;
-    font-size:24px;
-    flex-shrink:0;
-    box-shadow:0 10px 24px rgba(0,0,0,.18);
+    font-family:'Fraunces',serif; font-weight:600; font-size:24px;
+    flex-shrink:0; box-shadow:0 10px 24px rgba(0,0,0,.18);
   }
   .brand-text{ min-width:0; }
   .brand-text h1{
-    font-family:'Fraunces', serif;
-    font-weight:600;
-    font-size:clamp(25px, 3vw, 34px);
-    line-height:1.08;
-    margin:0;
-    color:#fff;
+    font-family:'Fraunces',serif; font-weight:600;
+    font-size:clamp(25px,3vw,34px); line-height:1.08; margin:0; color:#fff;
   }
   .brand-text p{
-    margin:7px 0 0;
-    font-size:14px;
-    color:rgba(255,255,255,.82);
-    overflow-wrap:anywhere;
+    margin:7px 0 0; font-size:14px;
+    color:rgba(255,255,255,.82); overflow-wrap:anywhere;
   }
-  #punchForm, .msg-area, .pdpa, .hr-link{
-    margin-left:34px;
-    margin-right:34px;
-  }
+  #punchForm,.msg-area,.pdpa,.hr-link{ margin-left:34px; margin-right:34px; }
   #punchForm{
     display:grid;
-    grid-template-columns:minmax(0, 1.35fr) minmax(170px, .65fr);
-    gap:16px;
-    margin-top:30px;
+    grid-template-columns:minmax(0,1.35fr) minmax(170px,.65fr);
+    gap:16px; margin-top:30px;
   }
   #punchForm fieldset{ border:none; padding:0; margin:0; }
-  .location-row, .btn-row{ grid-column:1 / -1; }
+  .location-row,.btn-row{ grid-column:1 / -1; }
   label{
-    display:block;
-    font-size:12px;
-    font-weight:800;
-    color:var(--ink-soft);
-    margin-bottom:7px;
-    text-transform:uppercase;
-    letter-spacing:.06em;
+    display:block; font-size:12px; font-weight:800;
+    color:var(--ink-soft); margin-bottom:7px;
+    text-transform:uppercase; letter-spacing:.06em;
   }
-  select, input{
-    width:100%;
-    min-width:0;
-    min-height:50px;
-    font-family:inherit;
-    font-size:16px;
+  select,input{
+    width:100%; min-width:0; min-height:50px;
+    font-family:inherit; font-size:16px;
     padding:12px 14px;
-    border:1px solid #C5D0CC;
-    border-radius:10px;
-    background:#fff;
-    color:var(--ink);
-    appearance:none;
-    transition:border-color .18s ease, box-shadow .18s ease, background .18s ease;
+    border:1px solid #C5D0CC; border-radius:10px;
+    background:#fff; color:var(--ink); appearance:none;
+    transition:border-color .18s,box-shadow .18s;
   }
-  select:hover, input:hover{ border-color:#AAB8B4; }
-  select:focus, input:focus{
-    outline:none;
-    border-color:var(--teal);
+  select:hover,input:hover{ border-color:#AAB8B4; }
+  select:focus,input:focus{
+    outline:none; border-color:var(--teal);
     box-shadow:0 0 0 4px var(--teal-tint);
   }
   select{
     background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='9'%3E%3Cpath d='M1 1l6 6 6-6' stroke='%2362716D' stroke-width='1.6' fill='none' fill-rule='evenodd'/%3E%3C/svg%3E");
-    background-repeat:no-repeat;
-    background-position:right 14px center;
+    background-repeat:no-repeat; background-position:right 14px center;
     padding-right:36px;
   }
-  input[type="password"],
-  input[inputmode="numeric"]{
-    letter-spacing:.34em;
-    font-variant-numeric:tabular-nums;
-    text-align:center;
-    font-size:23px;
-    font-weight:700;
-    padding-left:22px;
-    padding-top:10px;
-    padding-bottom:10px;
+  input[type="password"],input[inputmode="numeric"]{
+    letter-spacing:.34em; font-variant-numeric:tabular-nums;
+    text-align:center; font-size:23px; font-weight:700;
+    padding-left:22px; padding-top:10px; padding-bottom:10px;
   }
   .location-row{
-    display:flex;
-    align-items:center;
-    gap:10px;
-    min-height:48px;
-    padding:11px 13px;
-    border-radius:10px;
-    font-size:14px;
-    font-weight:800;
-    background:var(--amber-tint);
-    color:var(--amber);
-    border:1px solid #F0D59D;
-    overflow-wrap:anywhere;
-    transition:background .2s ease, color .2s ease, border-color .2s ease;
+    display:flex; align-items:center; gap:10px;
+    min-height:48px; padding:11px 13px; border-radius:10px;
+    font-size:14px; font-weight:800;
+    background:var(--amber-tint); color:var(--amber);
+    border:1px solid #F0D59D; overflow-wrap:anywhere;
+    transition:background .2s,color .2s,border-color .2s;
   }
-  .location-row.is-ready{
-    background:var(--ready-tint);
-    color:var(--ready);
-    border-color:#BDE2CF;
-  }
-  .location-row.is-error{
-    background:var(--error-tint);
-    color:var(--error);
-    border-color:#F0C3B7;
-  }
+  .location-row.is-ready{ background:var(--ready-tint); color:var(--ready); border-color:#BDE2CF; }
+  .location-row.is-error{ background:var(--error-tint); color:var(--error); border-color:#F0C3B7; }
   .location-row .dot{
-    width:10px; height:10px;
-    border-radius:50%;
-    background:currentColor;
-    flex-shrink:0;
+    width:10px; height:10px; border-radius:50%;
+    background:currentColor; flex-shrink:0;
     box-shadow:0 0 0 4px rgba(156,106,18,.1);
   }
   .location-row.is-ready .dot{ box-shadow:0 0 0 4px rgba(35,134,91,.12); }
@@ -195,164 +131,86 @@
     0%,100%{ opacity:1; transform:scale(1); }
     50%{ opacity:.4; transform:scale(.7); }
   }
-  .btn-row{
-    display:grid;
-    grid-template-columns:1fr 1fr;
-    gap:12px;
-  }
+  .btn-row{ display:grid; grid-template-columns:1fr 1fr; gap:12px; }
   button.punch{
-    font-family:inherit;
-    font-size:15px;
-    font-weight:800;
-    min-height:52px;
-    padding:14px 16px;
-    border-radius:10px;
-    border:none;
-    color:#fff;
-    cursor:pointer;
-    touch-action:manipulation;
-    transition:opacity .15s ease, transform .08s ease, box-shadow .18s ease;
+    font-family:inherit; font-size:15px; font-weight:800;
+    min-height:52px; padding:14px 16px; border-radius:10px; border:none;
+    color:#fff; cursor:pointer; touch-action:manipulation;
+    transition:opacity .15s,transform .08s,box-shadow .18s;
   }
   button.punch:active{ transform:translateY(1px); }
   button.punch:disabled{ opacity:.42; cursor:not-allowed; box-shadow:none; }
-  #clockInBtn{
-    background:var(--ready);
-    box-shadow:0 12px 24px rgba(35,134,91,.24);
-  }
-  #clockOutBtn{
-    background:var(--error);
-    box-shadow:0 12px 24px rgba(180,61,42,.2);
-  }
-  .msg-area{ margin-top:16px; min-height:0; }
+  #clockInBtn{ background:var(--ready); box-shadow:0 12px 24px rgba(35,134,91,.24); }
+  #clockOutBtn{ background:var(--error); box-shadow:0 12px 24px rgba(180,61,42,.2); }
+  .msg-area{ margin-top:16px; }
   .confirm-box{
-    border-radius:12px;
-    padding:15px 16px;
-    background:var(--ready-tint);
-    border:1px solid #BDE2CF;
-    color:var(--teal-deep);
-    font-size:13.5px;
-    line-height:1.55;
+    border-radius:12px; padding:15px 16px;
+    background:var(--ready-tint); border:1px solid #BDE2CF;
+    color:var(--teal-deep); font-size:13.5px; line-height:1.55;
     overflow-wrap:anywhere;
   }
   .confirm-box strong{ display:block; font-size:15px; margin-bottom:2px; }
   .error-box{
-    border-radius:12px;
-    padding:15px 16px;
-    background:var(--error-tint);
-    border:1px solid #F0C3B7;
-    color:var(--error);
-    font-size:13.5px;
-    line-height:1.55;
+    border-radius:12px; padding:15px 16px;
+    background:var(--error-tint); border:1px solid #F0C3B7;
+    color:var(--error); font-size:13.5px; line-height:1.55;
     overflow-wrap:anywhere;
   }
   .error-box strong{ display:block; margin-bottom:6px; }
-  .error-box ol, .error-box ul{ margin:6px 0 0; padding-left:18px; }
+  .error-box ol,.error-box ul{ margin:6px 0 0; padding-left:18px; }
   .error-box li{ margin-bottom:2px; }
   .retry{
-    display:inline-flex;
-    align-items:center;
-    min-height:38px;
-    margin-top:12px;
-    font-size:13px;
-    font-weight:800;
-    color:var(--error);
-    background:#fff;
-    border:1px solid var(--error);
-    border-radius:8px;
-    padding:8px 12px;
-    cursor:pointer;
-    text-decoration:none;
-    font-family:inherit;
+    display:inline-flex; align-items:center; min-height:38px;
+    margin-top:12px; font-size:13px; font-weight:800;
+    color:var(--error); background:#fff;
+    border:1px solid var(--error); border-radius:8px;
+    padding:8px 12px; cursor:pointer; font-family:inherit;
   }
   .pdpa{
-    margin-top:18px;
-    border-top:1px solid var(--border);
-    padding-top:15px;
+    margin-top:18px; border-top:1px solid var(--border); padding-top:15px;
   }
   .pdpa summary{
-    font-size:12.5px;
-    font-weight:800;
-    color:var(--ink-soft);
-    cursor:pointer;
-    list-style:none;
-    display:flex;
-    align-items:center;
-    gap:6px;
+    font-size:12.5px; font-weight:800; color:var(--ink-soft);
+    cursor:pointer; list-style:none;
+    display:flex; align-items:center; gap:6px;
   }
   .pdpa summary::-webkit-details-marker{ display:none; }
   .pdpa summary::before{
-    content:">";
-    display:inline-block;
-    font-size:13px;
-    transition:transform .15s ease;
+    content:">"; display:inline-block; font-size:13px;
+    transition:transform .15s;
   }
   .pdpa[open] summary::before{ transform:rotate(90deg); }
   .pdpa p{
-    font-size:12px;
-    color:var(--ink-soft);
-    line-height:1.6;
-    margin:8px 0 0;
+    font-size:12px; color:var(--ink-soft); line-height:1.6; margin:8px 0 0;
   }
-  .hr-link{
-    text-align:center;
-    margin-top:16px;
-    margin-bottom:28px;
-    display:none;
-  }
+  .hr-link{ text-align:center; margin-top:16px; margin-bottom:28px; display:none; }
   .hr-link.is-visible{ display:block; }
   .hr-link a{
-    font-size:12px;
-    color:var(--ink-soft);
-    text-decoration:none;
-    border-bottom:1px dotted var(--border);
+    font-size:12px; color:var(--ink-soft);
+    text-decoration:none; border-bottom:1px dotted var(--border);
   }
   .hr-link a:hover{ color:var(--teal); }
   @media (max-width:760px){
-    body{
-      align-items:flex-start;
-      padding:0;
-      background:var(--surface);
-    }
+    body{ align-items:flex-start; padding:0; background:var(--surface); }
     .card{
-      min-height:100svh;
-      max-width:none;
-      border:0;
-      border-radius:0;
-      box-shadow:none;
+      min-height:100svh; max-width:none;
+      border:0; border-radius:0; box-shadow:none;
     }
-    .brand{
-      align-items:flex-start;
-      padding:24px 18px;
-      border-radius:0 0 18px 18px;
-    }
+    .brand{ align-items:flex-start; padding:24px 18px; border-radius:0 0 18px 18px; }
     .brand::after{ display:none; }
     .brand-mark{ width:42px; height:42px; font-size:21px; }
     .brand-text h1{ font-size:24px; }
     .brand-text p{ font-size:13px; }
-    #punchForm, .msg-area, .pdpa, .hr-link{
-      margin-left:18px;
-      margin-right:18px;
-    }
+    #punchForm,.msg-area,.pdpa,.hr-link{ margin-left:18px; margin-right:18px; }
     #punchForm{ display:block; margin-top:22px; }
-    #punchForm fieldset, .location-row{ margin-bottom:15px; }
+    #punchForm fieldset,.location-row{ margin-bottom:15px; }
     .msg-area{ margin-top:15px; }
   }
   @media (max-width:380px){
-    .brand{
-      gap:10px;
-      padding-left:14px;
-      padding-right:14px;
-    }
+    .brand{ gap:10px; padding-left:14px; padding-right:14px; }
     .brand-text h1{ font-size:22px; }
-    #punchForm, .msg-area, .pdpa, .hr-link{
-      margin-left:14px;
-      margin-right:14px;
-    }
-    input[type="password"],
-    input[inputmode="numeric"]{
-      letter-spacing:.24em;
-      padding-left:18px;
-    }
+    #punchForm,.msg-area,.pdpa,.hr-link{ margin-left:14px; margin-right:14px; }
+    input[type="password"],input[inputmode="numeric"]{ letter-spacing:.24em; padding-left:18px; }
     .btn-row{ grid-template-columns:1fr; }
   }
   @media (prefers-reduced-motion: reduce){
@@ -404,8 +262,8 @@
     <p>
       Goolee.my collects your name, PIN verification result, GPS coordinates,
       and timestamp only to confirm attendance at the moment you punch in or out.
-      Location data is not tracked outside of that moment and is only visible to HR.
-      Contact HR to review, correct, or request removal of your attendance records.
+      Location is not tracked outside that moment and is visible only to HR.
+      Contact HR to review, correct, or request removal of your records.
     </p>
   </details>
 
@@ -419,27 +277,26 @@
   "use strict";
 
   // ═══════════════════════════════════════════════════════════════════
-  // CONFIGURATION — paste your Apps Script /exec URL below
+  // CONFIG — paste your Apps Script /exec URL below
   // ═══════════════════════════════════════════════════════════════════
   const CONFIG = {
-    API_URL: "https://script.google.com/macros/s/AKfycbyvWU0QjBHnZ1Opne1n8Fb8d49QlKv99ZUuNz2poK4yqXm8hPehRCsV4aECa3P1x40fyg/exec",
+    API_URL: "https://script.google.com/macros/s/AKfycbzkMOPy0IMjVaBbQcRBmHby5OIR28cUEonUO0nrvgFWfXcIU63pExq3CWkQIqV-6Dtb/exec",
     SHEET_URL: "",
     SHOW_HR_LINK: false,
 
-    ACCURACY_THRESHOLD_M: 50,
+    ACCURACY_MAX_M: 50,
     GPS_TIMEOUT_MS: 15000,
-    GPS_MAX_AGE_MS: 0,
     GPS_RETRIES: 3,
     GPS_RETRY_DELAY_MS: 2000,
 
-    PIN_MAX_ATTEMPTS: 5,
+    PIN_MAX_TRIES: 5,
     PIN_LOCKOUT_MS: 5 * 60 * 1000,
 
-    REQUEST_TIMEOUT_MS: 25000,
+    REQUEST_TIMEOUT_MS: 25000
   };
 
   // ═══════════════════════════════════════════════════════════════════
-  // DOM refs
+  // DOM
   // ═══════════════════════════════════════════════════════════════════
   const $ = id => document.getElementById(id);
   const employeeSelect = $('employeeSelect');
@@ -457,9 +314,6 @@
     hrLinkWrap.classList.add('is-visible');
   }
 
-  // ═══════════════════════════════════════════════════════════════════
-  // State
-  // ═══════════════════════════════════════════════════════════════════
   let currentPosition = null;
   let gpsAttempt = 0;
   let gpsLocked = false;
@@ -467,21 +321,17 @@
   // ═══════════════════════════════════════════════════════════════════
   // Utilities
   // ═══════════════════════════════════════════════════════════════════
-  function escapeHtml(value) {
-    return String(value).replace(/[&<>"']/g, ch => ({
-      '&': '&amp;',
-      '<': '&lt;',
-      '>': '&gt;',
-      '"': '&quot;',
-      "'": '&#39;'
+  function escapeHtml(v) {
+    return String(v).replace(/[&<>"']/g, ch => ({
+      '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'
     }[ch]));
   }
 
   async function hashPin(pin) {
     if (!window.crypto || !window.crypto.subtle) {
-      throw new Error('This browser does not support secure PIN hashing. Please use a newer browser.');
+      throw new Error('This browser does not support secure PIN hashing.');
     }
-    const bytes  = new TextEncoder().encode(pin);
+    const bytes = new TextEncoder().encode(pin);
     const digest = await window.crypto.subtle.digest('SHA-256', bytes);
     return Array.from(new Uint8Array(digest))
       .map(b => b.toString(16).padStart(2, '0'))
@@ -489,39 +339,37 @@
   }
 
   // ═══════════════════════════════════════════════════════════════════
-  // JSONP — single transport for every request (no iframe, no POST)
-  // Apps Script POSTs 302-redirect and drop the response; GET/JSONP works.
+  // JSONP transport (Apps Script POST redirects break iframe/POST)
   // ═══════════════════════════════════════════════════════════════════
-  function jsonpRequest(fields) {
+  function jsonp(fields) {
     return new Promise((resolve, reject) => {
       const cb = 'goolee_cb_' + Date.now() + '_' + Math.random().toString(36).slice(2);
       const params = new URLSearchParams(Object.assign({}, fields, { callback: cb }));
       const script = document.createElement('script');
-      let settled = false;
+      let done = false;
 
       const cleanup = () => {
         clearTimeout(timer);
         try { delete window[cb]; } catch (e) { window[cb] = undefined; }
         script.remove();
       };
-
-      const finish = (fn, value) => {
-        if (settled) return;
-        settled = true;
+      const finish = (fn, val) => {
+        if (done) return;
+        done = true;
         cleanup();
-        fn(value);
+        fn(val);
       };
 
-      window[cb] = data => finish(resolve, data || { ok: false, message: 'Empty response from server.' });
+      window[cb] = data => finish(resolve, data || { ok: false, message: 'Empty response.' });
 
       script.onerror = () => finish(reject, new Error(
-        'Could not reach the attendance server. ' +
-        'Check that the Apps Script Web App is deployed with "Who has access: Anyone".'
+        'Could not reach the attendance server. Verify the Apps Script is deployed with "Who has access: Anyone".'
       ));
 
-      const timer = setTimeout(() => {
-        finish(reject, new Error('Attendance server did not respond in time.'));
-      }, CONFIG.REQUEST_TIMEOUT_MS);
+      const timer = setTimeout(
+        () => finish(reject, new Error('Attendance server did not respond in time.')),
+        CONFIG.REQUEST_TIMEOUT_MS
+      );
 
       script.src = CONFIG.API_URL + '?' + params.toString();
       document.body.appendChild(script);
@@ -533,7 +381,7 @@
   // ═══════════════════════════════════════════════════════════════════
   async function loadEmployees() {
     try {
-      const data = await jsonpRequest({ action: 'employees' });
+      const data = await jsonp({ action: 'employees' });
       employeeSelect.innerHTML = '<option value="" disabled selected>Select your name</option>';
       (data.employees || []).forEach(emp => {
         const opt = document.createElement('option');
@@ -542,14 +390,14 @@
         employeeSelect.appendChild(opt);
       });
     } catch (err) {
-      console.error('Failed to load employees:', err);
+      console.error('loadEmployees failed:', err);
       employeeSelect.innerHTML =
-        '<option value="" disabled selected>Could not load names — reload page</option>';
+        '<option value="" disabled selected>Could not load names — reload the page</option>';
     }
   }
 
   // ═══════════════════════════════════════════════════════════════════
-  // GPS acquisition — mandatory, accuracy ≤ threshold enforced
+  // GPS
   // ═══════════════════════════════════════════════════════════════════
   function setLocationState(state, text) {
     locationStatus.className = 'location-row is-' + state;
@@ -566,42 +414,33 @@
 
   function attemptLocation() {
     gpsAttempt += 1;
+    if (!('geolocation' in navigator)) { showLocationError('unsupported'); return; }
 
-    if (!('geolocation' in navigator)) {
-      showLocationError('unsupported');
-      return;
-    }
-
-    setLocationState(
-      'locating',
+    setLocationState('locating',
       gpsAttempt === 1
         ? 'Locating…'
-        : `Still locating you… (attempt ${gpsAttempt} of ${CONFIG.GPS_RETRIES})`
+        : `Still locating… (attempt ${gpsAttempt} of ${CONFIG.GPS_RETRIES})`
     );
 
     navigator.geolocation.getCurrentPosition(onGpsSuccess, onGpsError, {
       enableHighAccuracy: true,
       timeout: CONFIG.GPS_TIMEOUT_MS,
-      maximumAge: CONFIG.GPS_MAX_AGE_MS
+      maximumAge: 0
     });
   }
 
   function onGpsSuccess(pos) {
     const accuracy = Math.round(pos.coords.accuracy);
-
-    if (accuracy > CONFIG.ACCURACY_THRESHOLD_M) {
+    if (accuracy > CONFIG.ACCURACY_MAX_M) {
       if (gpsAttempt < CONFIG.GPS_RETRIES) {
-        setLocationState(
-          'locating',
-          `Location not accurate enough yet · ${accuracy} m (need ≤ ${CONFIG.ACCURACY_THRESHOLD_M} m). Retrying…`
-        );
+        setLocationState('locating',
+          `Not accurate enough · ${accuracy} m (need ≤ ${CONFIG.ACCURACY_MAX_M} m). Retrying…`);
         setTimeout(attemptLocation, CONFIG.GPS_RETRY_DELAY_MS);
       } else {
         showLocationError('inaccurate', accuracy);
       }
       return;
     }
-
     currentPosition = {
       lat: pos.coords.latitude,
       lng: pos.coords.longitude,
@@ -612,10 +451,7 @@
   }
 
   function onGpsError(err) {
-    if (err.code === err.PERMISSION_DENIED) {
-      showLocationError('permission');
-      return;
-    }
+    if (err.code === err.PERMISSION_DENIED) { showLocationError('permission'); return; }
     if (gpsAttempt < CONFIG.GPS_RETRIES) {
       setTimeout(attemptLocation, CONFIG.GPS_RETRY_DELAY_MS);
     } else {
@@ -627,12 +463,12 @@
     gpsLocked = false;
     currentPosition = null;
 
-    let text = 'Location unavailable.';
-    if (kind === 'permission')  text = 'Location permission needed';
-    if (kind === 'inaccurate')  text = `Accuracy too poor · ${accuracy} m`;
-    if (kind === 'timeout')     text = 'Could not lock your location';
-    if (kind === 'unsupported') text = 'This browser has no location support';
-    setLocationState('error', text);
+    let short = 'Location unavailable.';
+    if (kind === 'permission')  short = 'Location permission needed';
+    if (kind === 'inaccurate')  short = `Accuracy too poor · ${accuracy} m`;
+    if (kind === 'timeout')     short = 'Could not lock your location';
+    if (kind === 'unsupported') short = 'This browser has no location support';
+    setLocationState('error', short);
 
     let html = '';
     if (kind === 'permission') {
@@ -657,7 +493,7 @@
     } else if (kind === 'inaccurate') {
       html = `
         <strong>📍 Location not accurate enough yet.</strong>
-        Current accuracy: ${accuracy} m (need ≤ ${CONFIG.ACCURACY_THRESHOLD_M} m)
+        Current accuracy: ${accuracy} m (need ≤ ${CONFIG.ACCURACY_MAX_M} m)
         <ul>
           <li>Move near a window or step outside</li>
           <li>Wait 5–10 seconds for the GPS to lock</li>
@@ -670,58 +506,46 @@
         This can take up to 15 seconds outdoors. Please keep the page open.
         <button type="button" class="retry" id="retryLocBtn">Retry manually</button>`;
     } else {
-      html = `<strong>Location unavailable.</strong> Please reload the page and try again.
+      html = `<strong>Location unavailable.</strong> Please reload and try again.
         <button type="button" class="retry" id="retryLocBtn">Retry</button>`;
     }
-
     msgArea.innerHTML = `<div class="error-box">${html}</div>`;
-    const retryBtn = $('retryLocBtn');
-    if (retryBtn) {
-      retryBtn.addEventListener('click', () => {
-        if (kind === 'permission') {
-          location.reload();
-        } else {
-          msgArea.innerHTML = '';
-          requestLocation();
-        }
-      });
-    }
+
+    const btn = $('retryLocBtn');
+    if (btn) btn.addEventListener('click', () => {
+      if (kind === 'permission') location.reload();
+      else { msgArea.innerHTML = ''; requestLocation(); }
+    });
   }
 
   // ═══════════════════════════════════════════════════════════════════
-  // Client-side PIN lockout (mirrors server-side; gives fast feedback)
+  // Client-side lockout
   // ═══════════════════════════════════════════════════════════════════
-  const lockoutKey = name => 'goolee_lockout_' + name;
+  const lockKey = name => 'goolee_lockout_' + name;
 
-  function getLockoutState(name) {
+  function getLock(name) {
     try {
-      const raw = localStorage.getItem(lockoutKey(name));
-      return raw ? JSON.parse(raw) : { attempts: 0, lockedUntil: 0 };
-    } catch (e) {
-      return { attempts: 0, lockedUntil: 0 };
+      const raw = localStorage.getItem(lockKey(name));
+      return raw ? JSON.parse(raw) : { tries: 0, until: 0 };
+    } catch (e) { return { tries: 0, until: 0 }; }
+  }
+  function setLock(name, state) {
+    try { localStorage.setItem(lockKey(name), JSON.stringify(state)); } catch (e) {}
+  }
+  function isLocked(name) { return getLock(name).until > Date.now(); }
+  function recordFail(name) {
+    const s = getLock(name);
+    s.tries = (s.tries || 0) + 1;
+    if (s.tries >= CONFIG.PIN_MAX_TRIES) {
+      s.until = Date.now() + CONFIG.PIN_LOCKOUT_MS;
+      s.tries = 0;
     }
+    setLock(name, s);
   }
-  function setLockoutState(name, state) {
-    try { localStorage.setItem(lockoutKey(name), JSON.stringify(state)); } catch (e) {}
-  }
-  function isLockedOut(name) {
-    return getLockoutState(name).lockedUntil > Date.now();
-  }
-  function registerFailedPin(name) {
-    const state = getLockoutState(name);
-    state.attempts = (state.attempts || 0) + 1;
-    if (state.attempts >= CONFIG.PIN_MAX_ATTEMPTS) {
-      state.lockedUntil = Date.now() + CONFIG.PIN_LOCKOUT_MS;
-      state.attempts = 0;
-    }
-    setLockoutState(name, state);
-  }
-  function clearLockout(name) {
-    setLockoutState(name, { attempts: 0, lockedUntil: 0 });
-  }
+  function clearLock(name) { setLock(name, { tries: 0, until: 0 }); }
 
   // ═══════════════════════════════════════════════════════════════════
-  // Button state
+  // Buttons
   // ═══════════════════════════════════════════════════════════════════
   function updateButtons() {
     const ready = gpsLocked && !!currentPosition;
@@ -731,13 +555,12 @@
 
   clockInBtn.addEventListener('click',  () => submitPunch('Clock In'));
   clockOutBtn.addEventListener('click', () => submitPunch('Clock Out'));
-
   pinInput.addEventListener('input', () => {
     pinInput.value = pinInput.value.replace(/[^0-9]/g, '').slice(0, 4);
   });
 
   // ═══════════════════════════════════════════════════════════════════
-  // Submit punch
+  // Submit
   // ═══════════════════════════════════════════════════════════════════
   async function submitPunch(action) {
     msgArea.innerHTML = '';
@@ -745,51 +568,44 @@
     const name = employeeSelect.value;
     const pin  = pinInput.value;
 
-    if (!name) {
-      showFormError('Select your name first.');
+    if (!name) { showFormError('Select your name first.'); return; }
+    if (isLocked(name)) {
+      const s = getLock(name);
+      const mins = Math.ceil((s.until - Date.now()) / 60000);
+      showFormError(`Too many incorrect PIN attempts. Try again in ${mins} minute${mins===1?'':'s'}.`);
       return;
     }
-    if (isLockedOut(name)) {
-      const state = getLockoutState(name);
-      const mins  = Math.ceil((state.lockedUntil - Date.now()) / 60000);
-      showFormError(`Too many incorrect PIN attempts. Try again in ${mins} minute${mins === 1 ? '' : 's'}.`);
-      return;
-    }
-    if (pin.length !== 4) {
-      showFormError('Enter your 4-digit PIN.');
-      return;
-    }
+    if (pin.length !== 4) { showFormError('Enter your 4-digit PIN.'); return; }
     if (!gpsLocked || !currentPosition) {
       showFormError('Waiting on a valid location — buttons unlock once GPS is ready.');
       return;
     }
 
-    clockInBtn.disabled  = true;
+    clockInBtn.disabled = true;
     clockOutBtn.disabled = true;
 
     try {
       const pinHash = await hashPin(pin);
-
-      const response = await jsonpRequest({
-        action:    'punch',
-        name:      name,
-        pinHash:   pinHash,
+      const res = await jsonp({
+        action: 'punch',
+        name,
+        pinHash,
         punchType: action,
-        lat:       String(currentPosition.lat),
-        lng:       String(currentPosition.lng),
-        accuracy:  String(currentPosition.accuracy)
+        lat: String(currentPosition.lat),
+        lng: String(currentPosition.lng),
+        accuracy: String(currentPosition.accuracy)
       });
 
-      if (!response.ok) {
-        if (response.reason === 'bad_pin') registerFailedPin(name);
-        showFormError(response.message || 'Punch could not be recorded.');
+      if (!res.ok) {
+        if (res.reason === 'bad_pin') recordFail(name);
+        showFormError(res.message || 'Punch could not be recorded.');
       } else {
-        clearLockout(name);
+        clearLock(name);
         pinInput.value = '';
-        showConfirmation(response);
+        showConfirmation(res);
       }
     } catch (err) {
-      console.error('Punch error:', err);
+      console.error('Punch failed:', err);
       showFormError(err.message || 'Network error — check your connection and try again.');
     } finally {
       updateButtons();
@@ -812,7 +628,6 @@
     const time = escapeHtml(data.time || '');
     const maps = escapeHtml(data.mapsLink || '#');
     const acc  = escapeHtml(String(data.accuracy ?? ''));
-
     msgArea.innerHTML = `
       <div class="confirm-box">
         <strong>${name} — ${type}</strong>
@@ -824,16 +639,11 @@
   // ═══════════════════════════════════════════════════════════════════
   // Boot
   // ═══════════════════════════════════════════════════════════════════
-  window.addEventListener('error', e => {
-    console.error('Goolee clock error:', e.error || e.message);
-  });
-  window.addEventListener('unhandledrejection', e => {
-    console.error('Goolee clock promise rejection:', e.reason);
-  });
+  window.addEventListener('error', e => console.error('Error:', e.error || e.message));
+  window.addEventListener('unhandledrejection', e => console.error('Rejection:', e.reason));
 
   loadEmployees();
   requestLocation();
-
 })();
 </script>
 </body>

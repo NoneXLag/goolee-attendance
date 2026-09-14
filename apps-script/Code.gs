@@ -1,92 +1,94 @@
 /**
- * Goolee.my Attendance System — Apps Script backend
+ * Goolee.my Attendance — Apps Script backend v2.0
  * ─────────────────────────────────────────────────
- * Bound to a Google Sheet with two tabs:
+ * Bound to a Google Sheet with two tabs: Employees, Attendance.
  *
- *   Employees  | Name | PIN  | Active |
- *   Attendance | Timestamp | Name | Action | Location | Accuracy (m) | Date | Time |
+ * Deployment:
+ *   Extensions → Apps Script → paste this → Save
+ *   Deploy → New deployment → Web app
+ *     Execute as:      Me
+ *     Who has access:  Anyone      ← must be "Anyone"
+ *   Copy the /exec URL into index.html → CONFIG.API_URL
  *
- * IMPORTANT: Format the PIN column as "Plain text" so leading zeros are kept.
- *
- * Deploy:
- *   1. Extensions → Apps Script, paste this file in as Code.gs
- *   2. Deploy → New deployment → Web app
- *        Execute as:      Me
- *        Who has access:  Anyone          ← MUST be "Anyone"
- *   3. Copy the /exec URL into CONFIG.API_URL in index.html
- *
- * Re-deploy every time you edit this file (Deploy → Manage deployments →
- * pencil icon → Version: New version → Deploy).
+ * After every edit:
+ *   Deploy → Manage deployments → pencil ✏️ → Version: New version → Deploy
  */
 
-const EMPLOYEES_SHEET      = 'Employees';
-const ATTENDANCE_SHEET     = 'Attendance';
-const ACCURACY_THRESHOLD_M = 50;
-const PIN_MAX_ATTEMPTS     = 5;
-const PIN_LOCKOUT_MINUTES  = 5;
+const EMPLOYEES_TAB       = 'Employees';
+const ATTENDANCE_TAB      = 'Attendance';
+const ACCURACY_MAX_M      = 50;
+const PIN_LOCKOUT_TRIES   = 5;
+const PIN_LOCKOUT_MINUTES = 5;
 
 // ═══════════════════════════════════════════════════════════════════════
-// HTTP entry points — everything goes through doGet (JSONP)
-// doPost is kept only for compatibility, but the frontend no longer uses it.
+// HTTP entry points
 // ═══════════════════════════════════════════════════════════════════════
 function doGet(e) {
-  const params = (e && e.parameter) || {};
-  const action = params.action;
+  const p = (e && e.parameter) || {};
+  const action = p.action;
 
+  if (action === 'ping') {
+    return respond_(p.callback, { ok: true, message: 'Goolee attendance API is live.' });
+  }
   if (action === 'employees') {
-    return respondJson_(params.callback, { ok: true, employees: listActiveEmployees() });
+    return respond_(p.callback, { ok: true, employees: listEmployees_() });
   }
-
   if (action === 'punch') {
-    return respondJson_(params.callback, handlePunch(params));
+    return respond_(p.callback, handlePunch_(p));
   }
-
-  return respondJson_(params.callback, { ok: false, message: 'Unknown action.' });
+  return respond_(p.callback, { ok: false, message: 'Unknown action: ' + action });
 }
 
 function doPost(e) {
-  const params = (e && e.parameter) || {};
-  let body;
+  // Kept for compatibility — the frontend uses GET/JSONP.
+  const p = (e && e.parameter) || {};
+  const body = p.action ? p : safeJson_(e.postData && e.postData.contents);
+  if (!body) return respond_(null, { ok: false, message: 'Malformed request.' });
+  if (body.action === 'punch') return respond_(null, handlePunch_(body));
+  return respond_(null, { ok: false, message: 'Unknown action.' });
+}
 
-  if (params.action) {
-    body = params;
+// ═══════════════════════════════════════════════════════════════════════
+// PIN normalisation — fixes the leading-zero problem
+// ═══════════════════════════════════════════════════════════════════════
+function normalizePin_(raw) {
+  if (raw === null || raw === undefined) return '';
+
+  let s;
+  if (typeof raw === 'number') {
+    // Sheet stored "0093" as the number 93 — strip decimals
+    s = String(Math.round(raw));
   } else {
-    try {
-      body = JSON.parse(e.postData.contents);
-    } catch (err) {
-      return respondJson_(null, { ok: false, message: 'Malformed request.' });
-    }
+    s = String(raw).trim();
   }
 
-  if (body.action === 'punch') {
-    return respondJson_(null, handlePunch(body));
-  }
-  return respondJson_(null, { ok: false, message: 'Unknown action.' });
+  // Pad 1–4 digit PINs to 4 characters so "93" becomes "0093"
+  if (/^\d{1,4}$/.test(s)) return s.padStart(4, '0');
+  return s;
 }
 
 // ═══════════════════════════════════════════════════════════════════════
-// Employees
+// Sheet access
 // ═══════════════════════════════════════════════════════════════════════
-function getSheet_(name) {
-  const sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(name);
-  if (!sheet) throw new Error('Missing sheet tab: ' + name);
-  return sheet;
+function sheet_(name) {
+  const s = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(name);
+  if (!s) throw new Error('Missing sheet tab: ' + name);
+  return s;
 }
 
-function listActiveEmployees() {
-  const sheet  = getSheet_(EMPLOYEES_SHEET);
-  const values = sheet.getDataRange().getValues();
+function listEmployees_() {
+  const values = sheet_(EMPLOYEES_TAB).getDataRange().getValues();
   if (values.length < 2) return [];
 
-  const header    = values[0].map(h => String(h).trim().toLowerCase());
-  const nameCol   = header.indexOf('name');
-  const activeCol = header.indexOf('active');
-  if (nameCol < 0) return [];
+  const header = values[0].map(h => String(h).trim().toLowerCase());
+  const nameIdx   = header.indexOf('name');
+  const activeIdx = header.indexOf('active');
+  if (nameIdx < 0) return [];
 
   const out = [];
   for (let i = 1; i < values.length; i++) {
-    const name   = values[i][nameCol];
-    const active = activeCol >= 0 ? values[i][activeCol] : true;
+    const name   = values[i][nameIdx];
+    const active = activeIdx >= 0 ? values[i][activeIdx] : true;
     if (!name) continue;
     if (active === false) continue;
     if (String(active).trim().toUpperCase() === 'FALSE') continue;
@@ -96,66 +98,62 @@ function listActiveEmployees() {
 }
 
 function findEmployee_(name) {
-  const sheet  = getSheet_(EMPLOYEES_SHEET);
-  const values = sheet.getDataRange().getValues();
+  const values = sheet_(EMPLOYEES_TAB).getDataRange().getValues();
   if (values.length < 2) return null;
 
-  const header    = values[0].map(h => String(h).trim().toLowerCase());
-  const nameCol   = header.indexOf('name');
-  const pinCol    = header.indexOf('pin');
-  const activeCol = header.indexOf('active');
+  const header = values[0].map(h => String(h).trim().toLowerCase());
+  const nameIdx   = header.indexOf('name');
+  const pinIdx    = header.indexOf('pin');
+  const activeIdx = header.indexOf('active');
 
   for (let i = 1; i < values.length; i++) {
-    if (String(values[i][nameCol]).trim() !== name) continue;
+    if (String(values[i][nameIdx]).trim() !== name) continue;
     return {
-      name: String(values[i][nameCol]).trim(),
-      pin:  pinCol >= 0 ? String(values[i][pinCol]).trim() : '',
-      active: activeCol < 0 ? true
-              : !(values[i][activeCol] === false ||
-                  String(values[i][activeCol]).trim().toUpperCase() === 'FALSE')
+      name: String(values[i][nameIdx]).trim(),
+      pin:  pinIdx >= 0 ? normalizePin_(values[i][pinIdx]) : '',
+      active: activeIdx < 0 ? true
+              : !(values[i][activeIdx] === false ||
+                  String(values[i][activeIdx]).trim().toUpperCase() === 'FALSE')
     };
   }
   return null;
 }
 
 // ═══════════════════════════════════════════════════════════════════════
-// Lockout — tracked per employee in script properties (server authoritative)
+// Lockout — server-side, per employee
 // ═══════════════════════════════════════════════════════════════════════
-function lockoutKey_(name) { return 'lockout_' + name; }
+function lockKey_(name) { return 'lockout_' + name; }
 
-function isLockedOut_(name) {
-  const raw = PropertiesService.getScriptProperties().getProperty(lockoutKey_(name));
+function isLocked_(name) {
+  const raw = PropertiesService.getScriptProperties().getProperty(lockKey_(name));
   if (!raw) return false;
-  try {
-    return JSON.parse(raw).lockedUntil > Date.now();
-  } catch (e) {
-    return false;
-  }
+  try { return JSON.parse(raw).until > Date.now(); }
+  catch (e) { return false; }
 }
 
-function registerFailedPin_(name) {
+function recordFailure_(name) {
   const props = PropertiesService.getScriptProperties();
-  const raw   = props.getProperty(lockoutKey_(name));
-  const state = raw ? JSON.parse(raw) : { attempts: 0, lockedUntil: 0 };
+  const raw   = props.getProperty(lockKey_(name));
+  const state = raw ? JSON.parse(raw) : { tries: 0, until: 0 };
 
-  state.attempts = (state.attempts || 0) + 1;
-  if (state.attempts >= PIN_MAX_ATTEMPTS) {
-    state.lockedUntil = Date.now() + PIN_LOCKOUT_MINUTES * 60 * 1000;
-    state.attempts = 0;
+  state.tries = (state.tries || 0) + 1;
+  if (state.tries >= PIN_LOCKOUT_TRIES) {
+    state.until = Date.now() + PIN_LOCKOUT_MINUTES * 60 * 1000;
+    state.tries = 0;
   }
-  props.setProperty(lockoutKey_(name), JSON.stringify(state));
+  props.setProperty(lockKey_(name), JSON.stringify(state));
 }
 
-function clearLockout_(name) {
-  PropertiesService.getScriptProperties().deleteProperty(lockoutKey_(name));
+function clearFailure_(name) {
+  PropertiesService.getScriptProperties().deleteProperty(lockKey_(name));
 }
 
 // ═══════════════════════════════════════════════════════════════════════
 // Punch handler
 // ═══════════════════════════════════════════════════════════════════════
-function handlePunch(body) {
+function handlePunch_(body) {
   const name      = String(body.name || '').trim();
-  const pin       = String(body.pin || '').trim();
+  const pin       = normalizePin_(body.pin);
   const pinHash   = String(body.pinHash || '').trim().toLowerCase();
   const punchType = body.punchType === 'Clock Out' ? 'Clock Out' : 'Clock In';
   const lat       = Number(body.lat);
@@ -166,7 +164,7 @@ function handlePunch(body) {
     return { ok: false, message: 'Missing employee name.' };
   }
 
-  if (isLockedOut_(name)) {
+  if (isLocked_(name)) {
     return {
       ok: false,
       reason: 'locked_out',
@@ -174,8 +172,8 @@ function handlePunch(body) {
     };
   }
 
-  // Mandatory GPS, accuracy ≤ 50 m — no fallback, no IP-only mode
-  if (isNaN(lat) || isNaN(lng) || isNaN(accuracy) || accuracy > ACCURACY_THRESHOLD_M) {
+  // Mandatory GPS — accuracy ≤ 50 m
+  if (isNaN(lat) || isNaN(lng) || isNaN(accuracy) || accuracy > ACCURACY_MAX_M) {
     return {
       ok: false,
       reason: 'bad_gps',
@@ -192,31 +190,26 @@ function handlePunch(body) {
     };
   }
 
-  // Accept either the plain PIN (server-side testing) or its SHA-256 hash
-  const hasValidPin     = /^\d{4}$/.test(pin) && pin === employee.pin;
-  const hasValidPinHash = /^[a-f0-9]{64}$/.test(pinHash) &&
-                          pinHash === sha256Hex_(employee.pin);
+  // Accept plain PIN or its SHA-256 hash
+  const pinOk     = /^\d{4}$/.test(pin) && pin === employee.pin;
+  const pinHashOk = /^[a-f0-9]{64}$/.test(pinHash) && pinHash === sha256_(employee.pin);
 
-  if (!hasValidPin && !hasValidPinHash) {
-    registerFailedPin_(name);
+  if (!pinOk && !pinHashOk) {
+    recordFailure_(name);
     return { ok: false, reason: 'bad_pin', message: 'Incorrect PIN.' };
   }
 
-  clearLockout_(name);
+  clearFailure_(name);
 
   const now = new Date();
   const tz  = SpreadsheetApp.getActiveSpreadsheet().getSpreadsheetTimeZone();
   const dateStr = Utilities.formatDate(now, tz, 'yyyy-MM-dd');
   const timeStr = Utilities.formatDate(now, tz, 'HH:mm:ss');
-
   const mapsLink = 'https://www.google.com/maps?q=' + lat + ',' + lng;
 
-  const sheet  = getSheet_(ATTENDANCE_SHEET);
-  const newRow = sheet.getLastRow() + 1;
-
-  // Write 7 columns. Location column gets a clickable HYPERLINK formula
-  // so HR can open the map directly from the sheet.
-  sheet.getRange(newRow, 1, 1, 7).setValues([[
+  const sheet = sheet_(ATTENDANCE_TAB);
+  const row   = sheet.getLastRow() + 1;
+  sheet.getRange(row, 1, 1, 7).setValues([[
     now,
     employee.name,
     punchType,
@@ -228,19 +221,19 @@ function handlePunch(body) {
 
   return {
     ok: true,
-    name:      employee.name,
+    name: employee.name,
     punchType: punchType,
-    date:      dateStr,
-    time:      timeStr,
-    mapsLink:  mapsLink,
-    accuracy:  accuracy
+    date: dateStr,
+    time: timeStr,
+    mapsLink: mapsLink,
+    accuracy: accuracy
   };
 }
 
 // ═══════════════════════════════════════════════════════════════════════
-// Response helper — JSON or JSONP
+// Helpers
 // ═══════════════════════════════════════════════════════════════════════
-function respondJson_(callback, obj) {
+function respond_(callback, obj) {
   const json = JSON.stringify(obj);
   if (callback) {
     const safe = String(callback).replace(/[^\w$.]/g, '');
@@ -253,17 +246,18 @@ function respondJson_(callback, obj) {
     .setMimeType(ContentService.MimeType.JSON);
 }
 
-// ═══════════════════════════════════════════════════════════════════════
-// SHA-256 helper — must match the client-side hashPin() in index.html
-// ═══════════════════════════════════════════════════════════════════════
-function sha256Hex_(value) {
+function safeJson_(text) {
+  try { return JSON.parse(text); } catch (e) { return null; }
+}
+
+function sha256_(value) {
   const bytes = Utilities.computeDigest(
     Utilities.DigestAlgorithm.SHA_256,
     String(value),
     Utilities.Charset.UTF_8
   );
   return bytes.map(function (b) {
-    const unsigned = b < 0 ? b + 256 : b;
-    return ('0' + unsigned.toString(16)).slice(-2);
+    const u = b < 0 ? b + 256 : b;
+    return ('0' + u.toString(16)).slice(-2);
   }).join('');
 }

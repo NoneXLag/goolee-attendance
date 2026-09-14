@@ -906,21 +906,16 @@
     clockOutBtn.disabled = true;
 
     try{
-      const payload = new URLSearchParams({
+      const data = await submitPunchViaFrame({
         action: 'punch',
         name,
         pin,
         punchType: action,
         lat: String(currentPosition.lat),
         lng: String(currentPosition.lng),
-        accuracy: String(currentPosition.accuracy)
+        accuracy: String(currentPosition.accuracy),
+        responseMode: 'frame'
       });
-
-      const res = await fetch(CONFIG.API_URL, {
-        method: 'POST',
-        body: payload
-      });
-      const data = await res.json();
 
       if (!data.ok){
         if (data.reason === 'bad_pin'){
@@ -937,6 +932,63 @@
     }finally{
       updateButtons();
     }
+  }
+
+  function submitPunchViaFrame(fields){
+    return new Promise((resolve, reject) => {
+      const requestId = `punch_${Date.now()}_${Math.random().toString(36).slice(2)}`;
+      const frameName = `gooleePunchFrame_${requestId}`;
+      const timeoutMs = 30000;
+
+      const iframe = document.createElement('iframe');
+      iframe.name = frameName;
+      iframe.style.display = 'none';
+
+      const form = document.createElement('form');
+      form.method = 'POST';
+      form.action = CONFIG.API_URL;
+      form.target = frameName;
+      form.style.display = 'none';
+
+      const allFields = Object.assign({}, fields, { requestId });
+      Object.keys(allFields).forEach(key => {
+        const input = document.createElement('input');
+        input.type = 'hidden';
+        input.name = key;
+        input.value = allFields[key];
+        form.appendChild(input);
+      });
+
+      let settled = false;
+      const cleanup = () => {
+        window.removeEventListener('message', onMessage);
+        clearTimeout(timer);
+        form.remove();
+        iframe.remove();
+      };
+
+      const finish = (fn, value) => {
+        if (settled) return;
+        settled = true;
+        cleanup();
+        fn(value);
+      };
+
+      const onMessage = event => {
+        const message = event.data || {};
+        if (message.source !== 'goolee-attendance' || message.requestId !== requestId) return;
+        finish(resolve, message.data || { ok: false, message: 'No response from attendance server.' });
+      };
+
+      const timer = setTimeout(() => {
+        finish(reject, new Error('Attendance server did not respond in time.'));
+      }, timeoutMs);
+
+      window.addEventListener('message', onMessage);
+      document.body.appendChild(iframe);
+      document.body.appendChild(form);
+      form.submit();
+    });
   }
 
   function showFormError(text){

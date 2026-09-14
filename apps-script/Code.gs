@@ -44,7 +44,11 @@ function doPost(e) {
   }
 
   if (body.action === 'punch') {
-    return handlePunch(body);
+    const result = handlePunch(body);
+    if (body.responseMode === 'frame') {
+      return respondFrame_(result, body.requestId);
+    }
+    return respond(result);
   }
   return respond({ ok: false, message: 'Unknown action.' });
 }
@@ -144,34 +148,34 @@ function handlePunch(body) {
   const lng = Number(body.lng);
   const accuracy = Number(body.accuracy);
 
-  if (!name) return respond({ ok: false, message: 'Missing employee name.' });
+  if (!name) return { ok: false, message: 'Missing employee name.' };
 
   if (isLockedOut_(name)) {
-    return respond({
+    return {
       ok: false,
       reason: 'locked_out',
       message: `Too many incorrect PIN attempts. Try again in a few minutes.`
-    });
+    };
   }
 
   // Core rule: every punch requires a valid GPS reading, accuracy <= 50 m.
   // No exceptions, no fallbacks, no IP-only mode.
   if (isNaN(lat) || isNaN(lng) || isNaN(accuracy) || accuracy > ACCURACY_THRESHOLD_M) {
-    return respond({
+    return {
       ok: false,
       reason: 'bad_gps',
       message: 'Location was missing or not accurate enough. Move outdoors and try again.'
-    });
+    };
   }
 
   const employee = findEmployeeRow_(name);
   if (!employee || !employee.active) {
-    return respond({ ok: false, reason: 'unknown_employee', message: 'Employee not found or inactive.' });
+    return { ok: false, reason: 'unknown_employee', message: 'Employee not found or inactive.' };
   }
 
   if (!/^\d{4}$/.test(pin) || pin !== employee.pin) {
     registerFailedPin_(name);
-    return respond({ ok: false, reason: 'bad_pin', message: 'Incorrect PIN.' });
+    return { ok: false, reason: 'bad_pin', message: 'Incorrect PIN.' };
   }
 
   clearLockout_(name);
@@ -197,7 +201,7 @@ function handlePunch(body) {
     timeStr
   ]]);
 
-  return respond({
+  return {
     ok: true,
     name: employee.name,
     punchType,
@@ -205,7 +209,7 @@ function handlePunch(body) {
     time: timeStr,
     mapsLink,
     accuracy
-  });
+  };
 }
 
 // ---------------------------------------------------------------------
@@ -216,4 +220,18 @@ function respond(obj) {
   return ContentService
     .createTextOutput(JSON.stringify(obj))
     .setMimeType(ContentService.MimeType.JSON);
+}
+
+function respondFrame_(obj, requestId) {
+  const payload = JSON.stringify({
+    source: 'goolee-attendance',
+    requestId: String(requestId || ''),
+    data: obj
+  }).replace(/</g, '\\u003c');
+
+  return HtmlService.createHtmlOutput(
+    '<!doctype html><html><body><script>' +
+    'window.parent.postMessage(' + payload + ', "*");' +
+    '</script></body></html>'
+  );
 }

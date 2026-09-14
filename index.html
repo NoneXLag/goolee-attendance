@@ -640,7 +640,7 @@
   // ---------------------------------------------------------------------
   const CONFIG = {
     API_URL: "https://script.google.com/macros/s/AKfycbyvWU0QjBHnZ1Opne1n8Fb8d49QlKv99ZUuNz2poK4yqXm8hPehRCsV4aECa3P1x40fyg/exec",
-    SHEET_URL: "https://docs.google.com/spreadsheets/d/1x2_3cljHh9QRIu2E2bsPfY9uv-HZ_xb08NGT-FcUrr4/edit?gid=803709483#gid=803709483", // shown only via the HR-only link
+    SHEET_URL: "", // keep the private Google Sheet URL out of public HTML
     ACCURACY_THRESHOLD_M: 50,
     GPS_TIMEOUT_MS: 15000,
     GPS_MAX_AGE_MS: 0,
@@ -662,7 +662,7 @@
   const msgArea = document.getElementById('msgArea');
   const hrLink = document.getElementById('hrLink');
 
-  hrLink.href = CONFIG.SHEET_URL === "https://docs.google.com/spreadsheets/d/1x2_3cljHh9QRIu2E2bsPfY9uv-HZ_xb08NGT-FcUrr4/edit?gid=803709483#gid=803709483" ? "#" : CONFIG.SHEET_URL;
+  hrLink.href = CONFIG.SHEET_URL || "#";
   // HR-only link: hidden from ordinary employees by default. Remove the
   // `display:none` below (or gate it behind an HR PIN/flag) once you wire
   // up real HR-only access control.

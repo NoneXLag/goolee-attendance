@@ -1,136 +1,155 @@
 /**
  * Goolee.my Attendance System — Apps Script backend
- * -------------------------------------------------
- * Deploy this bound to a Google Sheet with two tabs:
+ * ─────────────────────────────────────────────────
+ * Bound to a Google Sheet with two tabs:
  *
- *   Employees  |  Name | PIN  | Active |
- *   Attendance |  Timestamp | Name | Action | Location (Google Maps) | Accuracy (m) | Date | Time |
+ *   Employees  | Name | PIN  | Active |
+ *   Attendance | Timestamp | Name | Action | Location | Accuracy (m) | Date | Time |
  *
- * Employees.PIN must be stored as TEXT (format the column as Plain text)
- * so that PINs like "0042" keep their leading zero.
+ * IMPORTANT: Format the PIN column as "Plain text" so leading zeros are kept.
  *
- * Setup:
- *   1. Extensions > Apps Script, paste this file in as Code.gs.
- *   2. Deploy > New deployment > Web app.
- *      - Execute as: Me
- *      - Who has access: Anyone
- *   3. Copy the web app URL into CONFIG.API_URL in index.html.
+ * Deploy:
+ *   1. Extensions → Apps Script, paste this file in as Code.gs
+ *   2. Deploy → New deployment → Web app
+ *        Execute as:      Me
+ *        Who has access:  Anyone          ← MUST be "Anyone"
+ *   3. Copy the /exec URL into CONFIG.API_URL in index.html
+ *
+ * Re-deploy every time you edit this file (Deploy → Manage deployments →
+ * pencil icon → Version: New version → Deploy).
  */
 
-const EMPLOYEES_SHEET = 'Employees';
-const ATTENDANCE_SHEET = 'Attendance';
-const ACCURACY_THRESHOLD_M = 50;
-const PIN_MAX_ATTEMPTS = 5;
-const PIN_LOCKOUT_MINUTES = 5;
+const EMPLOYEES_SHEET       = 'Employees';
+const ATTENDANCE_SHEET      = 'Attendance';
+const ACCURACY_THRESHOLD_M  = 50;
+const PIN_MAX_ATTEMPTS      = 5;
+const PIN_LOCKOUT_MINUTES   = 5;
 
+// ═══════════════════════════════════════════════════════════════════════
+// HTTP entry points
+// ═══════════════════════════════════════════════════════════════════════
 function doGet(e) {
-  const action = e.parameter.action;
+  const params = (e && e.parameter) || {};
+  const action = params.action;
+
   if (action === 'employees') {
-    return respond({ ok: true, employees: listActiveEmployees() });
+    return respondJson_(params.callback, { ok: true, employees: listActiveEmployees() });
   }
+
   if (action === 'punch') {
-    const result = handlePunch(e.parameter);
-    if (e.parameter.callback) {
-      return respondJsonp_(result, e.parameter.callback);
-    }
-    return respond(result);
+    const result = handlePunch(params);
+    return respondJson_(params.callback, result);
   }
-  return respond({ ok: false, message: 'Unknown action.' });
+
+  return respondJson_(params.callback, { ok: false, message: 'Unknown action.' });
 }
 
 function doPost(e) {
+  const params = (e && e.parameter) || {};
   let body;
-  try {
-    if (e.parameter && e.parameter.action) {
-      body = e.parameter;
-    } else {
+
+  if (params.action) {
+    body = params;
+  } else {
+    try {
       body = JSON.parse(e.postData.contents);
+    } catch (err) {
+      return respondJson_(null, { ok: false, message: 'Malformed request.' });
     }
-  } catch (err) {
-    return respond({ ok: false, message: 'Malformed request.' });
   }
 
-  if (body.action === 'punch') {
-    const result = handlePunch(body);
-    if (body.responseMode === 'frame') {
-      return respondFrame_(result, body.requestId);
-    }
-    return respond(result);
+  if (body.action !== 'punch') {
+    return respondJson_(null, { ok: false, message: 'Unknown action.' });
   }
-  return respond({ ok: false, message: 'Unknown action.' });
+
+  const result = handlePunch(body);
+
+  if (body.responseMode === 'frame') {
+    return respondFrame_(result, body.requestId);
+  }
+  return respondJson_(null, result);
 }
 
-// ---------------------------------------------------------------------
+// ═══════════════════════════════════════════════════════════════════════
 // Employees
-// ---------------------------------------------------------------------
+// ═══════════════════════════════════════════════════════════════════════
+function getSheet_(name) {
+  const sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(name);
+  if (!sheet) throw new Error('Missing sheet tab: ' + name);
+  return sheet;
+}
 
-function getEmployeesSheet_() {
-  return SpreadsheetApp.getActiveSpreadsheet().getSheetByName(EMPLOYEES_SHEET);
+function readHeader_(sheet) {
+  return sheet.getRange(1, 1, 1, sheet.getLastColumn())
+              .getValues()[0]
+              .map(h => String(h).trim().toLowerCase());
 }
 
 function listActiveEmployees() {
-  const sheet = getEmployeesSheet_();
-  const rows = sheet.getDataRange().getValues();
-  const header = rows[0].map(h => String(h).trim().toLowerCase());
-  const nameCol = header.indexOf('name');
-  const activeCol = header.indexOf('active');
+  const sheet  = getSheet_(EMPLOYEES_SHEET);
+  const values = sheet.getDataRange().getValues();
+  if (values.length < 2) return [];
 
-  const employees = [];
-  for (let i = 1; i < rows.length; i++) {
-    const row = rows[i];
-    const name = row[nameCol];
-    const active = row[activeCol];
+  const header    = values[0].map(h => String(h).trim().toLowerCase());
+  const nameCol   = header.indexOf('name');
+  const activeCol = header.indexOf('active');
+  if (nameCol < 0) return [];
+
+  const out = [];
+  for (let i = 1; i < values.length; i++) {
+    const name   = values[i][nameCol];
+    const active = activeCol >= 0 ? values[i][activeCol] : true;
     if (!name) continue;
-    if (active === false || String(active).toUpperCase() === 'FALSE') continue;
-    employees.push({ name: String(name).trim() });
+    if (active === false) continue;
+    if (String(active).trim().toUpperCase() === 'FALSE') continue;
+    out.push({ name: String(name).trim() });
   }
-  return employees;
+  return out;
 }
 
-function findEmployeeRow_(name) {
-  const sheet = getEmployeesSheet_();
-  const rows = sheet.getDataRange().getValues();
-  const header = rows[0].map(h => String(h).trim().toLowerCase());
-  const nameCol = header.indexOf('name');
-  const pinCol = header.indexOf('pin');
+function findEmployee_(name) {
+  const sheet  = getSheet_(EMPLOYEES_SHEET);
+  const values = sheet.getDataRange().getValues();
+  if (values.length < 2) return null;
+
+  const header    = values[0].map(h => String(h).trim().toLowerCase());
+  const nameCol   = header.indexOf('name');
+  const pinCol    = header.indexOf('pin');
   const activeCol = header.indexOf('active');
 
-  for (let i = 1; i < rows.length; i++) {
-    if (String(rows[i][nameCol]).trim() === name) {
-      return {
-        name: String(rows[i][nameCol]).trim(),
-        pin: String(rows[i][pinCol]).trim(),
-        active: !(rows[i][activeCol] === false ||
-          String(rows[i][activeCol]).toUpperCase() === 'FALSE')
-      };
-    }
+  for (let i = 1; i < values.length; i++) {
+    if (String(values[i][nameCol]).trim() !== name) continue;
+    return {
+      name:   String(values[i][nameCol]).trim(),
+      pin:    pinCol >= 0 ? String(values[i][pinCol]).trim() : '',
+      active: activeCol < 0 ? true
+              : !(values[i][activeCol] === false ||
+                  String(values[i][activeCol]).trim().toUpperCase() === 'FALSE')
+    };
   }
   return null;
 }
 
-// ---------------------------------------------------------------------
-// PIN lockout — tracked per employee via PropertiesService.
-// Apps Script web apps do not expose the caller's IP address, so this
-// mirrors the client-side lockout in index.html but is authoritative:
-// even if someone bypasses the browser lockout, the server still enforces it.
-// ---------------------------------------------------------------------
-
-function lockoutKey_(name) {
-  return 'lockout_' + name;
-}
+// ═══════════════════════════════════════════════════════════════════════
+// Lockout — tracked per employee in script properties (server authoritative)
+// ═══════════════════════════════════════════════════════════════════════
+function lockoutKey_(name) { return 'lockout_' + name; }
 
 function isLockedOut_(name) {
-  const props = PropertiesService.getScriptProperties();
-  const raw = props.getProperty(lockoutKey_(name));
+  const raw = PropertiesService.getScriptProperties().getProperty(lockoutKey_(name));
   if (!raw) return false;
-  const state = JSON.parse(raw);
-  return state.lockedUntil > Date.now();
+  try {
+    return JSON.parse(raw).lockedUntil > Date.now();
+  } catch (e) {
+    return false;
+  }
 }
 
 function registerFailedPin_(name) {
   const props = PropertiesService.getScriptProperties();
-  const raw = props.getProperty(lockoutKey_(name));
+  const raw   = props.getProperty(lockoutKey_(name));
   const state = raw ? JSON.parse(raw) : { attempts: 0, lockedUntil: 0 };
+
   state.attempts = (state.attempts || 0) + 1;
   if (state.attempts >= PIN_MAX_ATTEMPTS) {
     state.lockedUntil = Date.now() + PIN_LOCKOUT_MINUTES * 60 * 1000;
@@ -143,31 +162,31 @@ function clearLockout_(name) {
   PropertiesService.getScriptProperties().deleteProperty(lockoutKey_(name));
 }
 
-// ---------------------------------------------------------------------
-// Punch handling
-// ---------------------------------------------------------------------
-
+// ═══════════════════════════════════════════════════════════════════════
+// Punch handler
+// ═══════════════════════════════════════════════════════════════════════
 function handlePunch(body) {
-  const name = String(body.name || '').trim();
-  const pin = String(body.pin || '').trim();
-  const pinHash = String(body.pinHash || '').trim().toLowerCase();
+  const name      = String(body.name || '').trim();
+  const pin       = String(body.pin || '').trim();
+  const pinHash   = String(body.pinHash || '').trim().toLowerCase();
   const punchType = body.punchType === 'Clock Out' ? 'Clock Out' : 'Clock In';
-  const lat = Number(body.lat);
-  const lng = Number(body.lng);
-  const accuracy = Number(body.accuracy);
+  const lat       = Number(body.lat);
+  const lng       = Number(body.lng);
+  const accuracy  = Number(body.accuracy);
 
-  if (!name) return { ok: false, message: 'Missing employee name.' };
+  if (!name) {
+    return { ok: false, message: 'Missing employee name.' };
+  }
 
   if (isLockedOut_(name)) {
     return {
       ok: false,
       reason: 'locked_out',
-      message: `Too many incorrect PIN attempts. Try again in a few minutes.`
+      message: 'Too many incorrect PIN attempts. Try again in a few minutes.'
     };
   }
 
-  // Core rule: every punch requires a valid GPS reading, accuracy <= 50 m.
-  // No exceptions, no fallbacks, no IP-only mode.
+  // Mandatory GPS, accuracy ≤ 50 m — no fallback, no IP-only mode
   if (isNaN(lat) || isNaN(lng) || isNaN(accuracy) || accuracy > ACCURACY_THRESHOLD_M) {
     return {
       ok: false,
@@ -176,13 +195,20 @@ function handlePunch(body) {
     };
   }
 
-  const employee = findEmployeeRow_(name);
+  const employee = findEmployee_(name);
   if (!employee || !employee.active) {
-    return { ok: false, reason: 'unknown_employee', message: 'Employee not found or inactive.' };
+    return {
+      ok: false,
+      reason: 'unknown_employee',
+      message: 'Employee not found or inactive.'
+    };
   }
 
-  const hasValidPin = /^\d{4}$/.test(pin) && pin === employee.pin;
-  const hasValidPinHash = /^[a-f0-9]{64}$/.test(pinHash) && pinHash === sha256Hex_(employee.pin);
+  // Accept either the plain PIN (server-side testing) or its SHA-256 hash
+  const hasValidPin     = /^\d{4}$/.test(pin) && pin === employee.pin;
+  const hasValidPinHash = /^[a-f0-9]{64}$/.test(pinHash) &&
+                          pinHash === sha256Hex_(employee.pin);
+
   if (!hasValidPin && !hasValidPinHash) {
     registerFailedPin_(name);
     return { ok: false, reason: 'bad_pin', message: 'Incorrect PIN.' };
@@ -191,16 +217,17 @@ function handlePunch(body) {
   clearLockout_(name);
 
   const now = new Date();
-  const tz = SpreadsheetApp.getActiveSpreadsheet().getSpreadsheetTimeZone();
+  const tz  = SpreadsheetApp.getActiveSpreadsheet().getSpreadsheetTimeZone();
   const dateStr = Utilities.formatDate(now, tz, 'yyyy-MM-dd');
   const timeStr = Utilities.formatDate(now, tz, 'HH:mm:ss');
 
   const mapsLink = 'https://www.google.com/maps?q=' + lat + ',' + lng;
 
-  const sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(ATTENDANCE_SHEET);
-  // Written as a HYPERLINK formula (not appendRow) so the Maps link is
-  // clickable straight from the sheet rather than showing as plain text.
+  const sheet  = getSheet_(ATTENDANCE_SHEET);
   const newRow = sheet.getLastRow() + 1;
+
+  // Write 7 columns. Location column gets a clickable HYPERLINK formula
+  // so HR can open the map directly from the sheet.
   sheet.getRange(newRow, 1, 1, 7).setValues([[
     now,
     employee.name,
@@ -213,33 +240,36 @@ function handlePunch(body) {
 
   return {
     ok: true,
-    name: employee.name,
-    punchType,
-    date: dateStr,
-    time: timeStr,
-    mapsLink,
-    accuracy
+    name:      employee.name,
+    punchType: punchType,
+    date:      dateStr,
+    time:      timeStr,
+    mapsLink:  mapsLink,
+    accuracy:  accuracy
   };
 }
 
-// ---------------------------------------------------------------------
-// Helpers
-// ---------------------------------------------------------------------
+// ═══════════════════════════════════════════════════════════════════════
+// Responses
+// ═══════════════════════════════════════════════════════════════════════
 
-function respond(obj) {
+// Standard JSON, or JSONP when a callback is present
+function respondJson_(callback, obj) {
+  const json = JSON.stringify(obj);
+  if (callback) {
+    const safe = String(callback).replace(/[^\w$.]/g, '');
+    return ContentService
+      .createTextOutput(safe + '(' + json + ');')
+      .setMimeType(ContentService.MimeType.JAVASCRIPT);
+  }
   return ContentService
-    .createTextOutput(JSON.stringify(obj))
+    .createTextOutput(json)
     .setMimeType(ContentService.MimeType.JSON);
 }
 
-function respondJsonp_(obj, callback) {
-  const safeCallback = String(callback || '').replace(/[^\w$.]/g, '');
-  const body = safeCallback + '(' + JSON.stringify(obj) + ');';
-  return ContentService
-    .createTextOutput(body)
-    .setMimeType(ContentService.MimeType.JAVASCRIPT);
-}
-
+// Iframe + postMessage response.
+// HtmlService with XFrameOptionsMode.ALLOWALL is required so the response
+// can be embedded inside the iframe on the caller's page.
 function respondFrame_(obj, requestId) {
   const payload = JSON.stringify({
     source: 'goolee-attendance',
@@ -247,22 +277,27 @@ function respondFrame_(obj, requestId) {
     data: obj
   }).replace(/</g, '\\u003c');
 
-  return HtmlService.createHtmlOutput(
-    '<!doctype html><html><body><script>' +
-    'window.parent.postMessage(' + payload + ', "*");' +
-    '</script></body></html>'
-  );
+  const html =
+    '<!doctype html><html><head><meta charset="utf-8"></head><body>' +
+    '<script>window.parent.postMessage(' + payload + ', "*");</script>' +
+    '</body></html>';
+
+  return HtmlService
+    .createHtmlOutput(html)
+    .setXFrameOptionsMode(HtmlService.XFrameOptionsMode.ALLOWALL);
 }
 
+// ═══════════════════════════════════════════════════════════════════════
+// Crypto helper
+// ═══════════════════════════════════════════════════════════════════════
 function sha256Hex_(value) {
   const bytes = Utilities.computeDigest(
     Utilities.DigestAlgorithm.SHA_256,
     String(value),
     Utilities.Charset.UTF_8
   );
-
-  return bytes.map(function(byte) {
-    const unsigned = byte < 0 ? byte + 256 : byte;
+  return bytes.map(function (b) {
+    const unsigned = b < 0 ? b + 256 : b;
     return ('0' + unsigned.toString(16)).slice(-2);
   }).join('');
 }

@@ -28,6 +28,13 @@ function doGet(e) {
   if (action === 'employees') {
     return respond({ ok: true, employees: listActiveEmployees() });
   }
+  if (action === 'punch') {
+    const result = handlePunch(e.parameter);
+    if (e.parameter.callback) {
+      return respondJsonp_(result, e.parameter.callback);
+    }
+    return respond(result);
+  }
   return respond({ ok: false, message: 'Unknown action.' });
 }
 
@@ -143,6 +150,7 @@ function clearLockout_(name) {
 function handlePunch(body) {
   const name = String(body.name || '').trim();
   const pin = String(body.pin || '').trim();
+  const pinHash = String(body.pinHash || '').trim().toLowerCase();
   const punchType = body.punchType === 'Clock Out' ? 'Clock Out' : 'Clock In';
   const lat = Number(body.lat);
   const lng = Number(body.lng);
@@ -173,7 +181,9 @@ function handlePunch(body) {
     return { ok: false, reason: 'unknown_employee', message: 'Employee not found or inactive.' };
   }
 
-  if (!/^\d{4}$/.test(pin) || pin !== employee.pin) {
+  const hasValidPin = /^\d{4}$/.test(pin) && pin === employee.pin;
+  const hasValidPinHash = /^[a-f0-9]{64}$/.test(pinHash) && pinHash === sha256Hex_(employee.pin);
+  if (!hasValidPin && !hasValidPinHash) {
     registerFailedPin_(name);
     return { ok: false, reason: 'bad_pin', message: 'Incorrect PIN.' };
   }
@@ -222,6 +232,14 @@ function respond(obj) {
     .setMimeType(ContentService.MimeType.JSON);
 }
 
+function respondJsonp_(obj, callback) {
+  const safeCallback = String(callback || '').replace(/[^\w$.]/g, '');
+  const body = safeCallback + '(' + JSON.stringify(obj) + ');';
+  return ContentService
+    .createTextOutput(body)
+    .setMimeType(ContentService.MimeType.JAVASCRIPT);
+}
+
 function respondFrame_(obj, requestId) {
   const payload = JSON.stringify({
     source: 'goolee-attendance',
@@ -234,4 +252,17 @@ function respondFrame_(obj, requestId) {
     'window.parent.postMessage(' + payload + ', "*");' +
     '</script></body></html>'
   );
+}
+
+function sha256Hex_(value) {
+  const bytes = Utilities.computeDigest(
+    Utilities.DigestAlgorithm.SHA_256,
+    String(value),
+    Utilities.Charset.UTF_8
+  );
+
+  return bytes.map(function(byte) {
+    const unsigned = byte < 0 ? byte + 256 : byte;
+    return ('0' + unsigned.toString(16)).slice(-2);
+  }).join('');
 }

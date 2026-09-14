@@ -12,7 +12,6 @@
   :root{
     --bg:#EEF2F1;
     --surface:#FFFFFF;
-    --surface-soft:#F7F9F8;
     --ink:#17211F;
     --ink-soft:#62716D;
     --teal:#176B5D;
@@ -28,10 +27,8 @@
     --radius:18px;
     --shadow:0 24px 70px rgba(23,33,31,.16);
   }
-
   *{ box-sizing:border-box; }
   html{ min-width:320px; }
-
   body{
     margin:0;
     min-height:100svh;
@@ -45,7 +42,6 @@
     -webkit-font-smoothing:antialiased;
     text-rendering:optimizeLegibility;
   }
-
   .card{
     width:100%;
     max-width:840px;
@@ -55,14 +51,11 @@
     box-shadow:var(--shadow);
     overflow:hidden;
   }
-
-  /* ───── Brand header ───── */
   .brand{
     display:flex;
     align-items:center;
     justify-content:space-between;
     gap:18px;
-    margin:0;
     padding:30px 34px;
     background:linear-gradient(135deg, var(--teal-deep), var(--teal));
     color:#fff;
@@ -77,7 +70,6 @@
     background:rgba(255,255,255,.12);
     font-size:12px;
     font-weight:700;
-    letter-spacing:.02em;
   }
   .brand-mark{
     width:48px; height:48px;
@@ -106,16 +98,10 @@
     color:rgba(255,255,255,.82);
     overflow-wrap:anywhere;
   }
-
-  /* ───── Form ───── */
-  #punchForm,
-  .msg-area,
-  .pdpa,
-  .hr-link{
+  #punchForm, .msg-area, .pdpa, .hr-link{
     margin-left:34px;
     margin-right:34px;
   }
-
   #punchForm{
     display:grid;
     grid-template-columns:minmax(0, 1.35fr) minmax(170px, .65fr);
@@ -123,10 +109,7 @@
     margin-top:30px;
   }
   #punchForm fieldset{ border:none; padding:0; margin:0; }
-
-  .location-row,
-  .btn-row{ grid-column:1 / -1; }
-
+  .location-row, .btn-row{ grid-column:1 / -1; }
   label{
     display:block;
     font-size:12px;
@@ -136,7 +119,6 @@
     text-transform:uppercase;
     letter-spacing:.06em;
   }
-
   select, input{
     width:100%;
     min-width:0;
@@ -174,8 +156,6 @@
     padding-top:10px;
     padding-bottom:10px;
   }
-
-  /* ───── Location status ───── */
   .location-row{
     display:flex;
     align-items:center;
@@ -215,8 +195,6 @@
     0%,100%{ opacity:1; transform:scale(1); }
     50%{ opacity:.4; transform:scale(.7); }
   }
-
-  /* ───── Buttons ───── */
   .btn-row{
     display:grid;
     grid-template-columns:1fr 1fr;
@@ -245,10 +223,7 @@
     background:var(--error);
     box-shadow:0 12px 24px rgba(180,61,42,.2);
   }
-
-  /* ───── Messages ───── */
   .msg-area{ margin-top:16px; min-height:0; }
-
   .confirm-box{
     border-radius:12px;
     padding:15px 16px;
@@ -260,7 +235,6 @@
     overflow-wrap:anywhere;
   }
   .confirm-box strong{ display:block; font-size:15px; margin-bottom:2px; }
-
   .error-box{
     border-radius:12px;
     padding:15px 16px;
@@ -274,7 +248,6 @@
   .error-box strong{ display:block; margin-bottom:6px; }
   .error-box ol, .error-box ul{ margin:6px 0 0; padding-left:18px; }
   .error-box li{ margin-bottom:2px; }
-
   .retry{
     display:inline-flex;
     align-items:center;
@@ -291,8 +264,6 @@
     text-decoration:none;
     font-family:inherit;
   }
-
-  /* ───── Footer ───── */
   .pdpa{
     margin-top:18px;
     border-top:1px solid var(--border);
@@ -322,12 +293,11 @@
     line-height:1.6;
     margin:8px 0 0;
   }
-
   .hr-link{
     text-align:center;
     margin-top:16px;
     margin-bottom:28px;
-    display:none; /* hidden by default; see HR_LINK config */
+    display:none;
   }
   .hr-link.is-visible{ display:block; }
   .hr-link a{
@@ -337,8 +307,6 @@
     border-bottom:1px dotted var(--border);
   }
   .hr-link a:hover{ color:var(--teal); }
-
-  /* ───── Mobile ───── */
   @media (max-width:760px){
     body{
       align-items:flex-start;
@@ -361,11 +329,7 @@
     .brand-mark{ width:42px; height:42px; font-size:21px; }
     .brand-text h1{ font-size:24px; }
     .brand-text p{ font-size:13px; }
-
-    #punchForm,
-    .msg-area,
-    .pdpa,
-    .hr-link{
+    #punchForm, .msg-area, .pdpa, .hr-link{
       margin-left:18px;
       margin-right:18px;
     }
@@ -373,7 +337,6 @@
     #punchForm fieldset, .location-row{ margin-bottom:15px; }
     .msg-area{ margin-top:15px; }
   }
-
   @media (max-width:380px){
     .brand{
       gap:10px;
@@ -392,7 +355,6 @@
     }
     .btn-row{ grid-template-columns:1fr; }
   }
-
   @media (prefers-reduced-motion: reduce){
     .location-row.is-locating .dot{ animation:none; }
     *{ transition-duration:.01ms !important; }
@@ -457,14 +419,12 @@
   "use strict";
 
   // ═══════════════════════════════════════════════════════════════════
-  // CONFIGURATION
-  // Replace API_URL with your deployed Apps Script Web App URL
-  // (Deploy → Manage deployments → copy the /exec URL).
+  // CONFIGURATION — paste your Apps Script /exec URL below
   // ═══════════════════════════════════════════════════════════════════
   const CONFIG = {
     API_URL: "https://script.google.com/macros/s/AKfycbyvWU0QjBHnZ1Opne1n8Fb8d49QlKv99ZUuNz2poK4yqXm8hPehRCsV4aECa3P1x40fyg/exec",
-    SHEET_URL: "",                  // optional: paste the private Sheet URL for HR
-    SHOW_HR_LINK: false,            // set true to show the "Open Google Sheet" link
+    SHEET_URL: "",
+    SHOW_HR_LINK: false,
 
     ACCURACY_THRESHOLD_M: 50,
     GPS_TIMEOUT_MS: 15000,
@@ -475,7 +435,7 @@
     PIN_MAX_ATTEMPTS: 5,
     PIN_LOCKOUT_MS: 5 * 60 * 1000,
 
-    REQUEST_TIMEOUT_MS: 25000,      // iframe / jsonp overall timeout
+    REQUEST_TIMEOUT_MS: 25000,
   };
 
   // ═══════════════════════════════════════════════════════════════════
@@ -492,7 +452,6 @@
   const hrLinkWrap     = $('hrLinkWrap');
   const hrLink         = $('hrLink');
 
-  // Show the HR link only when explicitly enabled
   if (CONFIG.SHOW_HR_LINK && CONFIG.SHEET_URL) {
     hrLink.href = CONFIG.SHEET_URL;
     hrLinkWrap.classList.add('is-visible');
@@ -501,7 +460,7 @@
   // ═══════════════════════════════════════════════════════════════════
   // State
   // ═══════════════════════════════════════════════════════════════════
-  let currentPosition = null;   // { lat, lng, accuracy }
+  let currentPosition = null;
   let gpsAttempt = 0;
   let gpsLocked = false;
 
@@ -510,13 +469,17 @@
   // ═══════════════════════════════════════════════════════════════════
   function escapeHtml(value) {
     return String(value).replace(/[&<>"']/g, ch => ({
-      '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
+      '&': '&amp;',
+      '<': '&lt;',
+      '>': '&gt;',
+      '"': '&quot;',
+      "'": '&#39;'
     }[ch]));
   }
 
   async function hashPin(pin) {
     if (!window.crypto || !window.crypto.subtle) {
-      throw new Error('This browser does not support secure PIN verification. Please use a newer browser.');
+      throw new Error('This browser does not support secure PIN hashing. Please use a newer browser.');
     }
     const bytes  = new TextEncoder().encode(pin);
     const digest = await window.crypto.subtle.digest('SHA-256', bytes);
@@ -526,11 +489,50 @@
   }
 
   // ═══════════════════════════════════════════════════════════════════
+  // JSONP — single transport for every request (no iframe, no POST)
+  // Apps Script POSTs 302-redirect and drop the response; GET/JSONP works.
+  // ═══════════════════════════════════════════════════════════════════
+  function jsonpRequest(fields) {
+    return new Promise((resolve, reject) => {
+      const cb = 'goolee_cb_' + Date.now() + '_' + Math.random().toString(36).slice(2);
+      const params = new URLSearchParams(Object.assign({}, fields, { callback: cb }));
+      const script = document.createElement('script');
+      let settled = false;
+
+      const cleanup = () => {
+        clearTimeout(timer);
+        try { delete window[cb]; } catch (e) { window[cb] = undefined; }
+        script.remove();
+      };
+
+      const finish = (fn, value) => {
+        if (settled) return;
+        settled = true;
+        cleanup();
+        fn(value);
+      };
+
+      window[cb] = data => finish(resolve, data || { ok: false, message: 'Empty response from server.' });
+
+      script.onerror = () => finish(reject, new Error(
+        'Could not reach the attendance server. ' +
+        'Check that the Apps Script Web App is deployed with "Who has access: Anyone".'
+      ));
+
+      const timer = setTimeout(() => {
+        finish(reject, new Error('Attendance server did not respond in time.'));
+      }, CONFIG.REQUEST_TIMEOUT_MS);
+
+      script.src = CONFIG.API_URL + '?' + params.toString();
+      document.body.appendChild(script);
+    });
+  }
+
+  // ═══════════════════════════════════════════════════════════════════
   // Load employees
   // ═══════════════════════════════════════════════════════════════════
   async function loadEmployees() {
     try {
-      // Use JSONP for the read-only employees call (no POST body, cacheable)
       const data = await jsonpRequest({ action: 'employees' });
       employeeSelect.innerHTML = '<option value="" disabled selected>Select your name</option>';
       (data.employees || []).forEach(emp => {
@@ -547,7 +549,7 @@
   }
 
   // ═══════════════════════════════════════════════════════════════════
-  // GPS — mandatory, accuracy ≤ 50 m enforced
+  // GPS acquisition — mandatory, accuracy ≤ threshold enforced
   // ═══════════════════════════════════════════════════════════════════
   function setLocationState(state, text) {
     locationStatus.className = 'location-row is-' + state;
@@ -556,8 +558,8 @@
   }
 
   function requestLocation() {
-    gpsAttempt  = 0;
-    gpsLocked   = false;
+    gpsAttempt = 0;
+    gpsLocked = false;
     currentPosition = null;
     attemptLocation();
   }
@@ -626,10 +628,10 @@
     currentPosition = null;
 
     let text = 'Location unavailable.';
-    if (kind === 'permission') text = 'Location permission needed';
-    if (kind === 'inaccurate') text = `Accuracy too poor · ${accuracy} m`;
-    if (kind === 'timeout')    text = 'Could not lock your location';
-    if (kind === 'unsupported')text = 'This browser has no location support';
+    if (kind === 'permission')  text = 'Location permission needed';
+    if (kind === 'inaccurate')  text = `Accuracy too poor · ${accuracy} m`;
+    if (kind === 'timeout')     text = 'Could not lock your location';
+    if (kind === 'unsupported') text = 'This browser has no location support';
     setLocationState('error', text);
 
     let html = '';
@@ -687,10 +689,9 @@
   }
 
   // ═══════════════════════════════════════════════════════════════════
-  // PIN lockout — client-side mirror. Server-side lockout in Code.gs is
-  // authoritative; this is just to give the user fast feedback.
+  // Client-side PIN lockout (mirrors server-side; gives fast feedback)
   // ═══════════════════════════════════════════════════════════════════
-  function lockoutKey(name) { return 'goolee_lockout_' + name; }
+  const lockoutKey = name => 'goolee_lockout_' + name;
 
   function getLockoutState(name) {
     try {
@@ -700,15 +701,12 @@
       return { attempts: 0, lockedUntil: 0 };
     }
   }
-
   function setLockoutState(name, state) {
     try { localStorage.setItem(lockoutKey(name), JSON.stringify(state)); } catch (e) {}
   }
-
   function isLockedOut(name) {
     return getLockoutState(name).lockedUntil > Date.now();
   }
-
   function registerFailedPin(name) {
     const state = getLockoutState(name);
     state.attempts = (state.attempts || 0) + 1;
@@ -718,7 +716,6 @@
     }
     setLockoutState(name, state);
   }
-
   function clearLockout(name) {
     setLockoutState(name, { attempts: 0, lockedUntil: 0 });
   }
@@ -773,10 +770,10 @@
     try {
       const pinHash = await hashPin(pin);
 
-      const response = await submitPunchRequest({
+      const response = await jsonpRequest({
         action:    'punch',
-        name,
-        pinHash,
+        name:      name,
+        pinHash:   pinHash,
         punchType: action,
         lat:       String(currentPosition.lat),
         lng:       String(currentPosition.lng),
@@ -800,124 +797,6 @@
   }
 
   // ═══════════════════════════════════════════════════════════════════
-  // Transport — iframe + postMessage (primary), JSONP (fallback)
-  // ═══════════════════════════════════════════════════════════════════
-  function submitPunchRequest(fields) {
-    return postViaIframe(fields).catch(err => {
-      console.warn('Iframe transport failed, falling back to JSONP:', err);
-      return jsonpRequest(fields);
-    });
-  }
-
-  // ── iframe + postMessage ──
-  function postViaIframe(fields) {
-    return new Promise((resolve, reject) => {
-      const requestId = 'punch_' + Date.now() + '_' + Math.random().toString(36).slice(2);
-      const frameName = 'goolee_frame_' + requestId;
-
-      const iframe = document.createElement('iframe');
-      iframe.name = frameName;
-      iframe.style.display = 'none';
-      iframe.setAttribute('aria-hidden', 'true');
-
-      const form = document.createElement('form');
-      form.method = 'POST';
-      form.action = CONFIG.API_URL;
-      form.target = frameName;
-      form.style.display = 'none';
-      form.acceptCharset = 'UTF-8';
-
-      const payload = Object.assign({}, fields, {
-        requestId,
-        responseMode: 'frame'
-      });
-
-      Object.keys(payload).forEach(key => {
-        const input = document.createElement('input');
-        input.type  = 'hidden';
-        input.name  = key;
-        input.value = payload[key];
-        form.appendChild(input);
-      });
-
-      let settled = false;
-
-      const cleanup = () => {
-        window.removeEventListener('message', onMessage);
-        clearTimeout(timer);
-        form.remove();
-        iframe.remove();
-      };
-
-      const finish = (fn, value) => {
-        if (settled) return;
-        settled = true;
-        cleanup();
-        fn(value);
-      };
-
-      const onMessage = (event) => {
-        const msg = event.data;
-        if (!msg || typeof msg !== 'object') return;
-        if (msg.source !== 'goolee-attendance') return;
-        if (msg.requestId !== requestId) return;
-        finish(resolve, msg.data || { ok: false, message: 'Empty response from server.' });
-      };
-
-      const timer = setTimeout(() => {
-        finish(reject, new Error('Attendance server did not respond in time. Please try again.'));
-      }, CONFIG.REQUEST_TIMEOUT_MS);
-
-      window.addEventListener('message', onMessage);
-      document.body.appendChild(iframe);
-      document.body.appendChild(form);
-      form.submit();
-    });
-  }
-
-  // ── JSONP ──
-  function jsonpRequest(fields) {
-    return new Promise((resolve, reject) => {
-      const callbackName = 'goolee_cb_' + Date.now() + '_' + Math.random().toString(36).slice(2);
-      const params = new URLSearchParams(Object.assign({}, fields, { callback: callbackName }));
-      const script = document.createElement('script');
-
-      let settled = false;
-
-      const cleanup = () => {
-        clearTimeout(timer);
-        try { delete window[callbackName]; } catch (e) { window[callbackName] = undefined; }
-        script.remove();
-      };
-
-      const finish = (fn, value) => {
-        if (settled) return;
-        settled = true;
-        cleanup();
-        fn(value);
-      };
-
-      window[callbackName] = (data) => {
-        finish(resolve, data || { ok: false, message: 'Empty response from server.' });
-      };
-
-      script.onerror = () => {
-        finish(reject, new Error(
-          'Could not reach the attendance server. ' +
-          'Check that the Apps Script Web App is deployed with "Who has access: Anyone".'
-        ));
-      };
-
-      const timer = setTimeout(() => {
-        finish(reject, new Error('Attendance server did not respond in time.'));
-      }, CONFIG.REQUEST_TIMEOUT_MS);
-
-      script.src = CONFIG.API_URL + '?' + params.toString();
-      document.body.appendChild(script);
-    });
-  }
-
-  // ═══════════════════════════════════════════════════════════════════
   // Messages
   // ═══════════════════════════════════════════════════════════════════
   function showFormError(text) {
@@ -927,12 +806,12 @@
   }
 
   function showConfirmation(data) {
-    const name    = escapeHtml(data.name || '');
-    const type    = escapeHtml(data.punchType || '');
-    const date    = escapeHtml(data.date || '');
-    const time    = escapeHtml(data.time || '');
-    const maps    = escapeHtml(data.mapsLink || '#');
-    const acc     = escapeHtml(String(data.accuracy ?? ''));
+    const name = escapeHtml(data.name || '');
+    const type = escapeHtml(data.punchType || '');
+    const date = escapeHtml(data.date || '');
+    const time = escapeHtml(data.time || '');
+    const maps = escapeHtml(data.mapsLink || '#');
+    const acc  = escapeHtml(String(data.accuracy ?? ''));
 
     msgArea.innerHTML = `
       <div class="confirm-box">

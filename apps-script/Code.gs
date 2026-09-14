@@ -19,14 +19,15 @@
  * pencil icon → Version: New version → Deploy).
  */
 
-const EMPLOYEES_SHEET       = 'Employees';
-const ATTENDANCE_SHEET      = 'Attendance';
-const ACCURACY_THRESHOLD_M  = 50;
-const PIN_MAX_ATTEMPTS      = 5;
-const PIN_LOCKOUT_MINUTES   = 5;
+const EMPLOYEES_SHEET      = 'Employees';
+const ATTENDANCE_SHEET     = 'Attendance';
+const ACCURACY_THRESHOLD_M = 50;
+const PIN_MAX_ATTEMPTS     = 5;
+const PIN_LOCKOUT_MINUTES  = 5;
 
 // ═══════════════════════════════════════════════════════════════════════
-// HTTP entry points
+// HTTP entry points — everything goes through doGet (JSONP)
+// doPost is kept only for compatibility, but the frontend no longer uses it.
 // ═══════════════════════════════════════════════════════════════════════
 function doGet(e) {
   const params = (e && e.parameter) || {};
@@ -37,8 +38,7 @@ function doGet(e) {
   }
 
   if (action === 'punch') {
-    const result = handlePunch(params);
-    return respondJson_(params.callback, result);
+    return respondJson_(params.callback, handlePunch(params));
   }
 
   return respondJson_(params.callback, { ok: false, message: 'Unknown action.' });
@@ -58,16 +58,10 @@ function doPost(e) {
     }
   }
 
-  if (body.action !== 'punch') {
-    return respondJson_(null, { ok: false, message: 'Unknown action.' });
+  if (body.action === 'punch') {
+    return respondJson_(null, handlePunch(body));
   }
-
-  const result = handlePunch(body);
-
-  if (body.responseMode === 'frame') {
-    return respondFrame_(result, body.requestId);
-  }
-  return respondJson_(null, result);
+  return respondJson_(null, { ok: false, message: 'Unknown action.' });
 }
 
 // ═══════════════════════════════════════════════════════════════════════
@@ -77,12 +71,6 @@ function getSheet_(name) {
   const sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(name);
   if (!sheet) throw new Error('Missing sheet tab: ' + name);
   return sheet;
-}
-
-function readHeader_(sheet) {
-  return sheet.getRange(1, 1, 1, sheet.getLastColumn())
-              .getValues()[0]
-              .map(h => String(h).trim().toLowerCase());
 }
 
 function listActiveEmployees() {
@@ -120,8 +108,8 @@ function findEmployee_(name) {
   for (let i = 1; i < values.length; i++) {
     if (String(values[i][nameCol]).trim() !== name) continue;
     return {
-      name:   String(values[i][nameCol]).trim(),
-      pin:    pinCol >= 0 ? String(values[i][pinCol]).trim() : '',
+      name: String(values[i][nameCol]).trim(),
+      pin:  pinCol >= 0 ? String(values[i][pinCol]).trim() : '',
       active: activeCol < 0 ? true
               : !(values[i][activeCol] === false ||
                   String(values[i][activeCol]).trim().toUpperCase() === 'FALSE')
@@ -250,10 +238,8 @@ function handlePunch(body) {
 }
 
 // ═══════════════════════════════════════════════════════════════════════
-// Responses
+// Response helper — JSON or JSONP
 // ═══════════════════════════════════════════════════════════════════════
-
-// Standard JSON, or JSONP when a callback is present
 function respondJson_(callback, obj) {
   const json = JSON.stringify(obj);
   if (callback) {
@@ -267,28 +253,8 @@ function respondJson_(callback, obj) {
     .setMimeType(ContentService.MimeType.JSON);
 }
 
-// Iframe + postMessage response.
-// HtmlService with XFrameOptionsMode.ALLOWALL is required so the response
-// can be embedded inside the iframe on the caller's page.
-function respondFrame_(obj, requestId) {
-  const payload = JSON.stringify({
-    source: 'goolee-attendance',
-    requestId: String(requestId || ''),
-    data: obj
-  }).replace(/</g, '\\u003c');
-
-  const html =
-    '<!doctype html><html><head><meta charset="utf-8"></head><body>' +
-    '<script>window.parent.postMessage(' + payload + ', "*");</script>' +
-    '</body></html>';
-
-  return HtmlService
-    .createHtmlOutput(html)
-    .setXFrameOptionsMode(HtmlService.XFrameOptionsMode.ALLOWALL);
-}
-
 // ═══════════════════════════════════════════════════════════════════════
-// Crypto helper
+// SHA-256 helper — must match the client-side hashPin() in index.html
 // ═══════════════════════════════════════════════════════════════════════
 function sha256Hex_(value) {
   const bytes = Utilities.computeDigest(

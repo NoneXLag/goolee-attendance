@@ -1,0 +1,963 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Goolee.my Attendance Clock</title>
+<meta name="description" content="Clock in and out with GPS-verified location.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#F6F3EC;
+    --surface:#FFFFFF;
+    --ink:#1C2624;
+    --ink-soft:#5B6B67;
+    --teal:#24544A;
+    --teal-deep:#173B34;
+    --teal-tint:#E1ECE8;
+    --ready:#2F8F5B;
+    --ready-tint:#E7F4EC;
+    --error:#B23A22;
+    --error-tint:#FBE8E3;
+    --amber:#9A6B14;
+    --amber-tint:#FAF0DC;
+    --border:#DDD7C7;
+    --radius:10px;
+    --shadow:0 1px 2px rgba(28,38,36,0.06);
+  }
+
+  *{ box-sizing:border-box; }
+
+  body{
+    margin:0;
+    min-height:100vh;
+    background:var(--bg);
+    background-image:
+      radial-gradient(circle at 12% 8%, rgba(36,84,74,0.05), transparent 45%),
+      radial-gradient(circle at 88% 92%, rgba(36,84,74,0.06), transparent 40%);
+    font-family:'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    color:var(--ink);
+    display:flex;
+    align-items:flex-start;
+    justify-content:center;
+    padding:40px 16px 60px;
+    -webkit-font-smoothing:antialiased;
+  }
+
+  .card{
+    width:100%;
+    max-width:440px;
+    background:var(--surface);
+    border:1px solid var(--border);
+    border-top:4px solid var(--teal);
+    border-radius:var(--radius);
+    box-shadow:var(--shadow);
+    padding:28px 26px 24px;
+  }
+
+  .brand{
+    display:flex;
+    align-items:center;
+    gap:10px;
+    margin-bottom:22px;
+  }
+  .brand-mark{
+    width:34px; height:34px;
+    border-radius:8px;
+    background:var(--teal);
+    color:#fff;
+    display:flex; align-items:center; justify-content:center;
+    font-family:'Fraunces', serif;
+    font-weight:600;
+    font-size:17px;
+    flex-shrink:0;
+  }
+  .brand-text h1{
+    font-family:'Fraunces', serif;
+    font-weight:600;
+    font-size:19px;
+    line-height:1.15;
+    margin:0;
+    color:var(--teal-deep);
+  }
+  .brand-text p{
+    margin:2px 0 0;
+    font-size:12.5px;
+    color:var(--ink-soft);
+  }
+
+  fieldset{ border:none; padding:0; margin:0 0 16px; }
+  label{
+    display:block;
+    font-size:12.5px;
+    font-weight:600;
+    color:var(--ink-soft);
+    margin-bottom:6px;
+    letter-spacing:0.01em;
+  }
+
+  select, input{
+    width:100%;
+    font-family:inherit;
+    font-size:16px;
+    padding:12px 14px;
+    border:1px solid var(--border);
+    border-radius:8px;
+    background:#fff;
+    color:var(--ink);
+    appearance:none;
+  }
+  select:focus, input:focus{
+    outline:none;
+    border-color:var(--teal);
+    box-shadow:0 0 0 3px var(--teal-tint);
+  }
+  select{
+    background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='9'%3E%3Cpath d='M1 1l6 6 6-6' stroke='%235B6B67' stroke-width='1.6' fill='none' fill-rule='evenodd'/%3E%3C/svg%3E");
+    background-repeat:no-repeat;
+    background-position:right 14px center;
+    padding-right:36px;
+  }
+  input[type="password"], input[inputmode="numeric"]{
+    letter-spacing:0.5em;
+    font-variant-numeric:tabular-nums;
+    text-align:center;
+    font-size:22px;
+    font-weight:600;
+    padding-top:10px;
+    padding-bottom:10px;
+  }
+
+  .location-row{
+    display:flex;
+    align-items:center;
+    gap:8px;
+    font-size:13.5px;
+    font-weight:600;
+    padding:10px 12px;
+    border-radius:8px;
+    margin-bottom:16px;
+    background:var(--amber-tint);
+    color:var(--amber);
+    border:1px solid transparent;
+    transition:background .2s ease, color .2s ease;
+  }
+  .location-row.is-ready{ background:var(--ready-tint); color:var(--ready); }
+  .location-row.is-error{ background:var(--error-tint); color:var(--error); }
+  .location-row .dot{
+    width:8px; height:8px; border-radius:50%;
+    background:currentColor;
+    flex-shrink:0;
+  }
+  .location-row.is-locating .dot{ animation:pulse 1.1s ease-in-out infinite; }
+  @keyframes pulse{
+    0%,100%{ opacity:1; transform:scale(1); }
+    50%{ opacity:.4; transform:scale(.7); }
+  }
+
+  .btn-row{
+    display:grid;
+    grid-template-columns:1fr 1fr;
+    gap:10px;
+    margin-bottom:4px;
+  }
+  button.punch{
+    font-family:inherit;
+    font-size:15px;
+    font-weight:700;
+    padding:14px 10px;
+    border-radius:8px;
+    border:none;
+    cursor:pointer;
+    transition:opacity .15s ease, transform .05s ease;
+  }
+  button.punch:active{ transform:translateY(1px); }
+  button.punch:disabled{ opacity:.42; cursor:not-allowed; }
+  #clockInBtn{ background:var(--ready); color:#fff; }
+  #clockOutBtn{ background:var(--error); color:#fff; }
+
+  .msg-area{ margin-top:16px; min-height:0; }
+  .confirm-box{
+    border-radius:8px;
+    padding:14px 15px;
+    background:var(--ready-tint);
+    border:1px solid #BFE0CC;
+    color:var(--teal-deep);
+    font-size:13.5px;
+    line-height:1.55;
+  }
+  .confirm-box strong{ display:block; font-size:15px; margin-bottom:2px; }
+  .error-box{
+    border-radius:8px;
+    padding:14px 15px;
+    background:var(--error-tint);
+    border:1px solid #EFC3B6;
+    color:var(--error);
+    font-size:13.5px;
+    line-height:1.55;
+  }
+  .error-box strong{ display:block; margin-bottom:6px; }
+  .error-box ol, .error-box ul{ margin:6px 0 0; padding-left:18px; }
+  .error-box li{ margin-bottom:2px; }
+  .error-box a.retry, .error-box button.retry{
+    display:inline-block;
+    margin-top:10px;
+    font-size:13px;
+    font-weight:700;
+    color:var(--error);
+    background:#fff;
+    border:1px solid var(--error);
+    border-radius:6px;
+    padding:7px 12px;
+    cursor:pointer;
+    text-decoration:none;
+    font-family:inherit;
+  }
+
+  .pdpa{
+    margin-top:20px;
+    border-top:1px solid var(--border);
+    padding-top:14px;
+  }
+  .pdpa summary{
+    font-size:12.5px;
+    font-weight:600;
+    color:var(--ink-soft);
+    cursor:pointer;
+    list-style:none;
+    display:flex;
+    align-items:center;
+    gap:6px;
+  }
+  .pdpa summary::-webkit-details-marker{ display:none; }
+  .pdpa summary::before{
+    content:"›";
+    display:inline-block;
+    transition:transform .15s ease;
+    font-size:15px;
+  }
+  .pdpa[open] summary::before{ transform:rotate(90deg); }
+  .pdpa p{
+    font-size:12px;
+    color:var(--ink-soft);
+    line-height:1.6;
+    margin:8px 0 0;
+  }
+
+  .hr-link{
+    text-align:center;
+    margin-top:16px;
+  }
+  .hr-link a{
+    font-size:12px;
+    color:var(--ink-soft);
+    text-decoration:none;
+    border-bottom:1px dotted var(--border);
+  }
+  .hr-link a:hover{ color:var(--teal); }
+
+  .sr-only{
+    position:absolute; width:1px; height:1px;
+    padding:0; margin:-1px; overflow:hidden;
+    clip:rect(0,0,0,0); white-space:nowrap; border:0;
+  }
+
+  @media (prefers-reduced-motion: reduce){
+    .location-row.is-locating .dot{ animation:none; }
+  }
+
+  /* Professional responsive refresh */
+  :root{
+    --bg:#EEF2F1;
+    --surface-soft:#F7F9F8;
+    --ink:#17211F;
+    --ink-soft:#62716D;
+    --teal:#176B5D;
+    --teal-deep:#0F4038;
+    --teal-tint:#E5F2EE;
+    --ready:#23865B;
+    --ready-tint:#E7F5EE;
+    --error:#B43D2A;
+    --error-tint:#FCEAE6;
+    --amber:#9C6A12;
+    --amber-tint:#FFF4DF;
+    --border:#D9E0DD;
+    --shadow:0 24px 70px rgba(23,33,31,.16);
+  }
+
+  html{ min-width:320px; }
+
+  body{
+    min-height:100svh;
+    align-items:center;
+    padding:clamp(18px, 4vw, 48px) 16px;
+    background:linear-gradient(135deg, #F8FAF9 0%, var(--bg) 48%, #E7EEEB 100%);
+    text-rendering:optimizeLegibility;
+  }
+
+  .card{
+    max-width:840px;
+    overflow:hidden;
+    border-color:var(--border);
+    border-top:0;
+    border-radius:18px;
+    box-shadow:var(--shadow);
+    padding:0;
+  }
+
+  .brand{
+    justify-content:space-between;
+    gap:18px;
+    margin:0;
+    padding:30px 34px;
+    background:linear-gradient(135deg, var(--teal-deep), var(--teal));
+    color:#fff;
+  }
+
+  .brand::after{
+    content:"GPS verified";
+    flex-shrink:0;
+    border:1px solid rgba(255,255,255,.24);
+    border-radius:999px;
+    padding:8px 12px;
+    color:rgba(255,255,255,.9);
+    background:rgba(255,255,255,.12);
+    font-size:12px;
+    font-weight:700;
+  }
+
+  .brand-mark{
+    width:48px;
+    height:48px;
+    border-radius:12px;
+    background:#fff;
+    color:var(--teal-deep);
+    font-size:24px;
+    box-shadow:0 10px 24px rgba(0,0,0,.18);
+  }
+
+  .brand-text{ min-width:0; }
+
+  .brand-text h1{
+    font-size:clamp(25px, 3vw, 34px);
+    line-height:1.08;
+    color:#fff;
+    letter-spacing:0;
+  }
+
+  .brand-text p{
+    margin-top:7px;
+    font-size:14px;
+    color:rgba(255,255,255,.82);
+    overflow-wrap:anywhere;
+  }
+
+  #punchForm,
+  .msg-area,
+  .pdpa,
+  .hr-link{
+    margin-left:34px;
+    margin-right:34px;
+  }
+
+  #punchForm{
+    display:grid;
+    grid-template-columns:minmax(0, 1.35fr) minmax(170px, .65fr);
+    gap:16px;
+    margin-top:30px;
+    padding-bottom:0;
+  }
+
+  #punchForm fieldset{ margin:0; }
+
+  .location-row,
+  .btn-row{
+    grid-column:1 / -1;
+  }
+
+  label{
+    margin-bottom:7px;
+    font-size:12px;
+    font-weight:800;
+    text-transform:uppercase;
+    letter-spacing:.06em;
+  }
+
+  select,
+  input{
+    min-width:0;
+    min-height:50px;
+    border-color:#C5D0CC;
+    border-radius:10px;
+    background:#fff;
+    transition:border-color .18s ease, box-shadow .18s ease, background .18s ease;
+  }
+
+  select:hover,
+  input:hover{ border-color:#AAB8B4; }
+
+  select:focus,
+  input:focus{
+    border-color:var(--teal);
+    box-shadow:0 0 0 4px var(--teal-tint);
+  }
+
+  input[type="password"],
+  input[inputmode="numeric"]{
+    letter-spacing:.34em;
+    font-size:23px;
+    font-weight:700;
+    padding-left:22px;
+  }
+
+  .location-row{
+    min-height:48px;
+    gap:10px;
+    margin-bottom:0;
+    padding:11px 13px;
+    border-radius:10px;
+    border-color:#F0D59D;
+    font-size:14px;
+    font-weight:800;
+    overflow-wrap:anywhere;
+  }
+
+  .location-row.is-ready{ border-color:#BDE2CF; }
+  .location-row.is-error{ border-color:#F0C3B7; }
+
+  .location-row .dot{
+    width:10px;
+    height:10px;
+    box-shadow:0 0 0 4px rgba(156,106,18,.1);
+  }
+
+  .location-row.is-ready .dot{ box-shadow:0 0 0 4px rgba(35,134,91,.12); }
+  .location-row.is-error .dot{ box-shadow:0 0 0 4px rgba(180,61,42,.12); }
+
+  .btn-row{
+    gap:12px;
+    margin-bottom:0;
+  }
+
+  button.punch{
+    min-height:52px;
+    padding:14px 16px;
+    border-radius:10px;
+    font-weight:800;
+    touch-action:manipulation;
+    transition:opacity .15s ease, transform .08s ease, box-shadow .18s ease;
+  }
+
+  #clockInBtn{ box-shadow:0 12px 24px rgba(35,134,91,.24); }
+  #clockOutBtn{ box-shadow:0 12px 24px rgba(180,61,42,.2); }
+  button.punch:disabled{ box-shadow:none; }
+
+  .msg-area{
+    margin-top:16px;
+  }
+
+  .confirm-box,
+  .error-box{
+    border-radius:12px;
+    padding:15px 16px;
+    overflow-wrap:anywhere;
+  }
+
+  .confirm-box{ border-color:#BDE2CF; }
+  .error-box{ border-color:#F0C3B7; }
+
+  .error-box a.retry,
+  .error-box button.retry{
+    display:inline-flex;
+    align-items:center;
+    min-height:38px;
+    margin-top:12px;
+    border-radius:8px;
+    padding:8px 12px;
+    font-weight:800;
+  }
+
+  .pdpa{
+    margin-top:18px;
+    padding-top:15px;
+  }
+
+  .pdpa summary{
+    font-weight:800;
+  }
+
+  .pdpa summary::before{
+    content:">";
+    font-size:13px;
+  }
+
+  .hr-link{
+    margin-top:16px;
+    margin-bottom:28px;
+  }
+
+  @media (max-width: 760px){
+    body{
+      align-items:flex-start;
+      padding:0;
+      background:var(--surface);
+    }
+
+    .card{
+      min-height:100vh;
+      min-height:100svh;
+      max-width:none;
+      border:0;
+      border-radius:0;
+      box-shadow:none;
+    }
+
+    .brand{
+      align-items:flex-start;
+      padding:24px 18px;
+      border-radius:0 0 18px 18px;
+    }
+
+    .brand::after{ display:none; }
+
+    .brand-mark{
+      width:42px;
+      height:42px;
+      font-size:21px;
+    }
+
+    .brand-text h1{ font-size:24px; }
+    .brand-text p{ font-size:13px; }
+
+    #punchForm,
+    .msg-area,
+    .pdpa,
+    .hr-link{
+      margin-left:18px;
+      margin-right:18px;
+    }
+
+    #punchForm{
+      display:block;
+      margin-top:22px;
+    }
+
+    #punchForm fieldset,
+    .location-row{
+      margin-bottom:15px;
+    }
+
+    .msg-area{ margin-top:15px; }
+  }
+
+  @media (max-width: 380px){
+    .brand{
+      gap:10px;
+      padding-left:14px;
+      padding-right:14px;
+    }
+
+    .brand-text h1{ font-size:22px; }
+
+    #punchForm,
+    .msg-area,
+    .pdpa,
+    .hr-link{
+      margin-left:14px;
+      margin-right:14px;
+    }
+
+    input[type="password"],
+    input[inputmode="numeric"]{
+      letter-spacing:.24em;
+      padding-left:18px;
+    }
+
+    .btn-row{ grid-template-columns:1fr; }
+  }
+</style>
+</head>
+<body>
+
+<main class="card" role="main">
+  <div class="brand">
+    <div class="brand-mark" aria-hidden="true">G</div>
+    <div class="brand-text">
+      <h1>Goolee.my Attendance Clock</h1>
+      <p>Punch in with your name, PIN, and location</p>
+    </div>
+  </div>
+
+  <form id="punchForm" novalidate>
+    <fieldset>
+      <label for="employeeSelect">Your name</label>
+      <select id="employeeSelect" required>
+        <option value="" disabled selected>Loading employees…</option>
+      </select>
+    </fieldset>
+
+    <fieldset>
+      <label for="pinInput">4-digit PIN</label>
+      <input id="pinInput" type="password" inputmode="numeric" pattern="[0-9]*"
+             maxlength="4" autocomplete="off" placeholder="••••">
+    </fieldset>
+
+    <div id="locationStatus" class="location-row is-locating" role="status" aria-live="polite">
+      <span class="dot" aria-hidden="true"></span>
+      <span id="locationText">Locating…</span>
+    </div>
+
+    <div class="btn-row">
+      <button type="button" id="clockInBtn" class="punch" disabled>Clock In</button>
+      <button type="button" id="clockOutBtn" class="punch" disabled>Clock Out</button>
+    </div>
+  </form>
+
+  <div id="msgArea" class="msg-area" aria-live="polite"></div>
+
+  <details class="pdpa">
+    <summary>Privacy notice (PDPA)</summary>
+    <p>
+      Goolee.my collects your name, PIN verification result, GPS coordinates,
+      and timestamp only to confirm attendance at the moment you punch in or out.
+      Location data is not tracked outside of that moment and is only visible to HR.
+      Contact HR to review, correct, or request removal of your attendance records.
+    </p>
+  </details>
+
+  <div class="hr-link">
+    <a href="#" id="hrLink">Open Google Sheet →</a>
+  </div>
+</main>
+
+<script>
+(function(){
+
+  // ---------------------------------------------------------------------
+  // CONFIGURATION — edit these two values after deploying the Apps Script
+  // ---------------------------------------------------------------------
+  const CONFIG = {
+    API_URL: "https://script.google.com/macros/s/AKfycbyvWU0QjBHnZ1Opne1n8Fb8d49QlKv99ZUuNz2poK4yqXm8hPehRCsV4aECa3P1x40fyg/exec",
+    SHEET_URL: "https://docs.google.com/spreadsheets/d/1x2_3cljHh9QRIu2E2bsPfY9uv-HZ_xb08NGT-FcUrr4/edit?gid=803709483#gid=803709483", // shown only via the HR-only link
+    ACCURACY_THRESHOLD_M: 50,
+    GPS_TIMEOUT_MS: 15000,
+    GPS_MAX_AGE_MS: 0,
+    GPS_RETRIES: 3,
+    GPS_RETRY_DELAY_MS: 2000,
+    PIN_MAX_ATTEMPTS: 5,
+    PIN_LOCKOUT_MS: 5 * 60 * 1000
+  };
+
+  // ---------------------------------------------------------------------
+  // DOM refs
+  // ---------------------------------------------------------------------
+  const employeeSelect = document.getElementById('employeeSelect');
+  const pinInput = document.getElementById('pinInput');
+  const locationStatus = document.getElementById('locationStatus');
+  const locationText = document.getElementById('locationText');
+  const clockInBtn = document.getElementById('clockInBtn');
+  const clockOutBtn = document.getElementById('clockOutBtn');
+  const msgArea = document.getElementById('msgArea');
+  const hrLink = document.getElementById('hrLink');
+
+  hrLink.href = CONFIG.SHEET_URL === "https://docs.google.com/spreadsheets/d/1x2_3cljHh9QRIu2E2bsPfY9uv-HZ_xb08NGT-FcUrr4/edit?gid=803709483#gid=803709483" ? "#" : CONFIG.SHEET_URL;
+  // HR-only link: hidden from ordinary employees by default. Remove the
+  // `display:none` below (or gate it behind an HR PIN/flag) once you wire
+  // up real HR-only access control.
+  hrLink.parentElement.style.display = "none";
+
+  let currentPosition = null;   // {lat, lng, accuracy}
+  let gpsAttempt = 0;
+  let gpsLocked = false;
+
+  // ---------------------------------------------------------------------
+  // Load employees (name + id only — PIN never leaves the sheet)
+  // ---------------------------------------------------------------------
+  async function loadEmployees(){
+    try{
+      const res = await fetch(`${CONFIG.API_URL}?action=employees`);
+      const data = await res.json();
+      employeeSelect.innerHTML = '<option value="" disabled selected>Select your name</option>';
+      (data.employees || []).forEach(emp => {
+        const opt = document.createElement('option');
+        opt.value = emp.name;
+        opt.textContent = emp.name;
+        employeeSelect.appendChild(opt);
+      });
+    }catch(err){
+      employeeSelect.innerHTML = '<option value="" disabled selected>Could not load names — reload page</option>';
+    }
+  }
+  loadEmployees();
+
+  // ---------------------------------------------------------------------
+  // GPS acquisition — mandatory, no fallback, no IP-only mode
+  // ---------------------------------------------------------------------
+  function setLocationState(state, text){
+    locationStatus.className = 'location-row is-' + state;
+    locationText.textContent = text;
+    updateButtons();
+  }
+
+  function requestLocation(){
+    gpsAttempt = 0;
+    gpsLocked = false;
+    currentPosition = null;
+    attemptLocation();
+  }
+
+  function attemptLocation(){
+    gpsAttempt += 1;
+
+    if (!('geolocation' in navigator)){
+      showLocationError('unsupported');
+      return;
+    }
+
+    setLocationState('locating',
+      gpsAttempt === 1 ? 'Locating…' : `Still locating you… (attempt ${gpsAttempt} of ${CONFIG.GPS_RETRIES})`);
+
+    navigator.geolocation.getCurrentPosition(onGpsSuccess, onGpsError, {
+      enableHighAccuracy: true,
+      timeout: CONFIG.GPS_TIMEOUT_MS,
+      maximumAge: CONFIG.GPS_MAX_AGE_MS
+    });
+  }
+
+  function onGpsSuccess(pos){
+    const accuracy = Math.round(pos.coords.accuracy);
+
+    if (accuracy > 50 && accuracy <= 100 || accuracy > 100){
+      // Poor accuracy — reject and ask the user to move, retrying automatically
+      if (gpsAttempt < CONFIG.GPS_RETRIES){
+        setLocationState('locating',
+          `Location not accurate enough yet · ${accuracy} m (need ≤ 50 m). Retrying…`);
+        setTimeout(attemptLocation, CONFIG.GPS_RETRY_DELAY_MS);
+      } else {
+        showLocationError('inaccurate', accuracy);
+      }
+      return;
+    }
+
+    currentPosition = {
+      lat: pos.coords.latitude,
+      lng: pos.coords.longitude,
+      accuracy
+    };
+    gpsLocked = true;
+    setLocationState('ready', `Ready · ${accuracy} m`);
+  }
+
+  function onGpsError(err){
+    if (err.code === err.PERMISSION_DENIED){
+      showLocationError('permission');
+      return;
+    }
+    if (gpsAttempt < CONFIG.GPS_RETRIES){
+      setTimeout(attemptLocation, CONFIG.GPS_RETRY_DELAY_MS);
+    } else {
+      showLocationError('timeout');
+    }
+  }
+
+  function showLocationError(kind, accuracy){
+    gpsLocked = false;
+    currentPosition = null;
+
+    let text = 'Location unavailable.';
+    if (kind === 'permission') text = 'Location permission needed';
+    if (kind === 'inaccurate') text = `Accuracy too poor · ${accuracy} m`;
+    if (kind === 'timeout') text = 'Could not lock your location';
+    if (kind === 'unsupported') text = 'This browser has no location support';
+    setLocationState('error', text);
+
+    let html = '';
+    if (kind === 'permission'){
+      html = `
+        <strong>⚠ Location permission is required.</strong>
+        We couldn't get your GPS location. To clock in, please:
+        <p style="margin:8px 0 2px;font-weight:600;">Chrome (Android)</p>
+        <ol>
+          <li>Tap the lock icon in the address bar</li>
+          <li>Tap "Permissions"</li>
+          <li>Set Location to "Allow"</li>
+          <li>Reload the page</li>
+        </ol>
+        <p style="margin:8px 0 2px;font-weight:600;">Safari (iPhone)</p>
+        <ol>
+          <li>Tap "aA" in the address bar</li>
+          <li>Tap "Website Settings"</li>
+          <li>Set Location to "Allow"</li>
+          <li>Reload the page</li>
+        </ol>
+        <button type="button" class="retry" id="retryLocBtn">Reload and try again</button>`;
+    } else if (kind === 'inaccurate'){
+      html = `
+        <strong>📍 Location not accurate enough yet.</strong>
+        Current accuracy: ${accuracy} m (need ≤ 50 m)
+        <ul>
+          <li>Move near a window or step outside</li>
+          <li>Wait 5–10 seconds for the GPS to lock</li>
+          <li>Keep the phone still</li>
+        </ul>
+        <button type="button" class="retry" id="retryLocBtn">Retry</button>`;
+    } else if (kind === 'timeout'){
+      html = `
+        <strong>📍 Still locating you…</strong>
+        This can take up to 15 seconds outdoors. Please keep the page open.
+        <button type="button" class="retry" id="retryLocBtn">Retry manually</button>`;
+    } else {
+      html = `<strong>Location unavailable.</strong> Please reload the page and try again.
+        <button type="button" class="retry" id="retryLocBtn">Retry</button>`;
+    }
+
+    msgArea.innerHTML = `<div class="error-box">${html}</div>`;
+    const retryBtn = document.getElementById('retryLocBtn');
+    if (retryBtn){
+      retryBtn.addEventListener('click', () => {
+        msgArea.innerHTML = '';
+        requestLocation();
+      });
+    }
+  }
+
+  // ---------------------------------------------------------------------
+  // PIN lockout — 5 failed attempts → 5 minute cooldown, tracked per
+  // employee in this browser (see Code.gs for the server-side mirror,
+  // since Apps Script does not expose the caller's IP address).
+  // ---------------------------------------------------------------------
+  function lockoutKey(name){ return `goolee_lockout_${name}`; }
+
+  function getLockoutState(name){
+    try{
+      const raw = localStorage.getItem(lockoutKey(name));
+      if (!raw) return { attempts: 0, lockedUntil: 0 };
+      return JSON.parse(raw);
+    }catch(e){ return { attempts: 0, lockedUntil: 0 }; }
+  }
+
+  function setLockoutState(name, state){
+    try{ localStorage.setItem(lockoutKey(name), JSON.stringify(state)); }catch(e){}
+  }
+
+  function isLockedOut(name){
+    const state = getLockoutState(name);
+    return state.lockedUntil > Date.now();
+  }
+
+  function registerFailedPin(name){
+    const state = getLockoutState(name);
+    state.attempts = (state.attempts || 0) + 1;
+    if (state.attempts >= CONFIG.PIN_MAX_ATTEMPTS){
+      state.lockedUntil = Date.now() + CONFIG.PIN_LOCKOUT_MS;
+      state.attempts = 0;
+    }
+    setLockoutState(name, state);
+    return state;
+  }
+
+  function clearLockout(name){
+    setLockoutState(name, { attempts: 0, lockedUntil: 0 });
+  }
+
+  // ---------------------------------------------------------------------
+  // Buttons
+  // ---------------------------------------------------------------------
+  function updateButtons(){
+    const ready = gpsLocked && !!currentPosition;
+    clockInBtn.disabled = !ready;
+    clockOutBtn.disabled = !ready;
+  }
+
+  clockInBtn.addEventListener('click', () => submitPunch('Clock In'));
+  clockOutBtn.addEventListener('click', () => submitPunch('Clock Out'));
+
+  pinInput.addEventListener('input', () => {
+    pinInput.value = pinInput.value.replace(/[^0-9]/g, '').slice(0, 4);
+  });
+
+  async function submitPunch(action){
+    msgArea.innerHTML = '';
+    const name = employeeSelect.value;
+    const pin = pinInput.value;
+
+    if (!name){
+      showFormError('Select your name first.');
+      return;
+    }
+    if (isLockedOut(name)){
+      const state = getLockoutState(name);
+      const mins = Math.ceil((state.lockedUntil - Date.now()) / 60000);
+      showFormError(`Too many incorrect PIN attempts. Try again in ${mins} minute${mins===1?'':'s'}.`);
+      return;
+    }
+    if (pin.length !== 4){
+      showFormError('Enter your 4-digit PIN.');
+      return;
+    }
+    if (!gpsLocked || !currentPosition){
+      showFormError('Waiting on a valid location — buttons unlock once GPS is ready.');
+      return;
+    }
+
+    clockInBtn.disabled = true;
+    clockOutBtn.disabled = true;
+
+    try{
+      const res = await fetch(CONFIG.API_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'text/plain;charset=utf-8' }, // avoids CORS preflight on Apps Script
+        body: JSON.stringify({
+          action: 'punch',
+          name,
+          pin,
+          punchType: action,
+          lat: currentPosition.lat,
+          lng: currentPosition.lng,
+          accuracy: currentPosition.accuracy
+        })
+      });
+      const data = await res.json();
+
+      if (!data.ok){
+        if (data.reason === 'bad_pin'){
+          registerFailedPin(name);
+        }
+        showFormError(data.message || 'Punch could not be recorded.');
+      } else {
+        clearLockout(name);
+        pinInput.value = '';
+        showConfirmation(data);
+      }
+    }catch(err){
+      showFormError('Network error — check your connection and try again.');
+    }finally{
+      updateButtons();
+    }
+  }
+
+  function showFormError(text){
+    pinInput.value = '';
+    msgArea.innerHTML = `<div class="error-box"><strong>Couldn't complete that.</strong>${text}</div>`;
+  }
+
+  function showConfirmation(data){
+    msgArea.innerHTML = `
+      <div class="confirm-box">
+        <strong>${data.name} — ${data.punchType}</strong>
+        ${data.date} at ${data.time}<br>
+        <a href="${data.mapsLink}" target="_blank" rel="noopener" style="color:inherit;">View location on Google Maps</a> (±${data.accuracy} m)
+      </div>`;
+  }
+
+  // ---------------------------------------------------------------------
+  // Kick things off
+  // ---------------------------------------------------------------------
+  requestLocation();
+
+})();
+</script>
+</body>
+</html>

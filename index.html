@@ -391,6 +391,8 @@
       transition-duration:.01ms !important;
     }
   }
+
+  /* ═══════════════ OVERLAY ═══════════════ */
   .overlay{
     position:fixed; inset:0;
     background:rgba(10,46,40,.55);
@@ -401,6 +403,7 @@
   }
   .overlay[hidden]{ display:none; }
   @keyframes fadeIn{ from{ opacity:0; } to{ opacity:1; } }
+
   .overlay-card{
     background:#fff; border-radius:var(--radius-xl);
     padding:40px 32px 32px; max-width:400px; width:100%;
@@ -412,6 +415,7 @@
     from{ opacity:0; transform:scale(.94); }
     to{ opacity:1; transform:scale(1); }
   }
+
   .overlay-icon{
     width:80px; height:80px; margin:0 auto 20px;
     border-radius:50%; background:var(--green-100);
@@ -424,10 +428,29 @@
     to{ transform:scale(1); }
   }
   .overlay-icon svg{ width:44px; height:44px; color:var(--green-600); }
+
+  /* Warning variant — amber */
+  .overlay--warn .overlay-icon{ background:var(--amber-100); }
+  .overlay--warn .overlay-icon svg{ color:var(--amber-600); }
+  .overlay--warn .overlay-title{ color:var(--amber-600); }
+  .overlay--warn .overlay-btn{
+    background:linear-gradient(180deg, var(--amber-600) 0%, #8A5A00 100%);
+    box-shadow:0 6px 18px rgba(182,122,15,.28);
+  }
+
+  /* Error variant — red */
+  .overlay--error .overlay-icon{ background:var(--red-100); }
+  .overlay--error .overlay-icon svg{ color:var(--red-600); }
+  .overlay--error .overlay-title{ color:var(--red-600); }
+  .overlay--error .overlay-btn{
+    background:linear-gradient(180deg, var(--red-500) 0%, var(--red-600) 100%);
+    box-shadow:0 6px 18px rgba(193,57,43,.28);
+  }
+
   .overlay-title{
     font-family:'Fraunces', serif; font-weight:600;
     font-size:26px; letter-spacing:-.02em;
-    color:var(--ink-900); margin:0 0 6px;
+    color:var(--green-600); margin:0 0 6px;
   }
   .overlay-name{
     font-size:16px; font-weight:700; color:var(--teal-700);
@@ -450,10 +473,10 @@
     width:100%; height:52px;
     font-family:inherit; font-size:15px; font-weight:700;
     color:#fff;
-    background:linear-gradient(180deg, var(--teal-600) 0%, var(--teal-800) 100%);
+    background:linear-gradient(180deg, var(--green-500) 0%, var(--green-600) 100%);
     border:none; border-radius:var(--radius);
     cursor:pointer;
-    box-shadow:0 6px 18px rgba(15,64,56,.28);
+    box-shadow:0 6px 18px rgba(31,157,100,.28);
     transition:transform .15s var(--ease);
   }
   .overlay-btn:hover{ transform:translateY(-1px); }
@@ -614,16 +637,17 @@
           </svg>
           Encrypted · PDPA compliant
         </span>
-        <span>v5.1</span>
+        <span>v5.2</span>
       </div>
     </div>
   </main>
 </div>
 
+<!-- ═══════════════ OVERLAY POPUP ═══════════════ -->
 <div class="overlay" id="overlay" hidden>
-  <div class="overlay-card">
+  <div class="overlay-card" id="overlayCard">
     <div class="overlay-icon">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
+      <svg id="overlayIconSvg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
         <polyline points="20 6 9 17 4 12"/>
       </svg>
     </div>
@@ -638,19 +662,28 @@
 (function(){
   "use strict";
 
+  // ═══════════════════════════════════════════════════════════════════
+  // CONFIG
+  // ═══════════════════════════════════════════════════════════════════
   const CONFIG = {
     API_URL: "https://script.google.com/macros/s/AKfycbzkMOPy0IMjVaBbQcRBmHby5OIR28cUEonUO0nrvgFWfXcIU63pExq3CWkQIqV-6Dtb/exec",
     SHEET_URL: "",
     SHOW_HR_LINK: false,
+
     ACCURACY_MAX_M: 100,
     GPS_TIMEOUT_MS: 15000,
     GPS_RETRIES: 3,
     GPS_RETRY_DELAY_MS: 2000,
+
     PIN_MAX_TRIES: 5,
     PIN_LOCKOUT_MS: 5 * 60 * 1000,
+
     REQUEST_TIMEOUT_MS: 25000
   };
 
+  // ═══════════════════════════════════════════════════════════════════
+  // DOM
+  // ═══════════════════════════════════════════════════════════════════
   const $ = id => document.getElementById(id);
   const employeeSelect = $('employeeSelect');
   const pinInput       = $('pinInput');
@@ -660,6 +693,8 @@
   const clockOutBtn    = $('clockOutBtn');
   const msgArea        = $('msgArea');
   const overlay        = $('overlay');
+  const overlayCard    = $('overlayCard');
+  const overlayIconSvg = $('overlayIconSvg');
   const okTitle        = $('okTitle');
   const okName         = $('okName');
   const okMeta         = $('okMeta');
@@ -668,6 +703,9 @@
   let gpsAttempt = 0;
   let gpsLocked = false;
 
+  // ═══════════════════════════════════════════════════════════════════
+  // Live clock
+  // ═══════════════════════════════════════════════════════════════════
   function updateClock() {
     const el = document.getElementById('liveClock');
     if (!el) return;
@@ -682,6 +720,9 @@
   const yearEl = document.getElementById('year');
   if (yearEl) yearEl.textContent = new Date().getFullYear();
 
+  // ═══════════════════════════════════════════════════════════════════
+  // Utilities
+  // ═══════════════════════════════════════════════════════════════════
   function escapeHtml(v) {
     return String(v).replace(/[&<>"']/g, ch => ({
       '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'
@@ -699,12 +740,16 @@
       .join('');
   }
 
+  // ═══════════════════════════════════════════════════════════════════
+  // JSONP transport
+  // ═══════════════════════════════════════════════════════════════════
   function jsonp(fields) {
     return new Promise((resolve, reject) => {
       const cb = 'goolee_cb_' + Date.now() + '_' + Math.random().toString(36).slice(2);
       const params = new URLSearchParams(Object.assign({}, fields, { callback: cb }));
       const script = document.createElement('script');
       let done = false;
+
       const cleanup = () => {
         clearTimeout(timer);
         try { delete window[cb]; } catch (e) { window[cb] = undefined; }
@@ -716,19 +761,26 @@
         cleanup();
         fn(val);
       };
+
       window[cb] = data => finish(resolve, data || { ok: false, message: 'Empty response.' });
+
       script.onerror = () => finish(reject, new Error(
         'Could not reach the attendance server. Verify the Apps Script is deployed with "Who has access: Anyone".'
       ));
+
       const timer = setTimeout(
         () => finish(reject, new Error('Attendance server did not respond in time.')),
         CONFIG.REQUEST_TIMEOUT_MS
       );
+
       script.src = CONFIG.API_URL + '?' + params.toString();
       document.body.appendChild(script);
     });
   }
 
+  // ═══════════════════════════════════════════════════════════════════
+  // Employee list — 5-minute client cache
+  // ═══════════════════════════════════════════════════════════════════
   const EMP_CACHE_KEY = 'goolee_employees_v2';
   const EMP_CACHE_TTL = 5 * 60 * 1000;
 
@@ -787,6 +839,9 @@
     } catch (e) {}
   }
 
+  // ═══════════════════════════════════════════════════════════════════
+  // GPS
+  // ═══════════════════════════════════════════════════════════════════
   function setLocationState(state, text) {
     locationStatus.className = 'location-status is-' + state;
     locationText.textContent = text;
@@ -803,11 +858,13 @@
   function attemptLocation() {
     gpsAttempt += 1;
     if (!('geolocation' in navigator)) { showLocationError('unsupported'); return; }
+
     setLocationState('locating',
       gpsAttempt === 1
         ? 'Locating you…'
         : `Still locating… (attempt ${gpsAttempt} of ${CONFIG.GPS_RETRIES})`
     );
+
     navigator.geolocation.getCurrentPosition(onGpsSuccess, onGpsError, {
       enableHighAccuracy: true,
       timeout: CONFIG.GPS_TIMEOUT_MS,
@@ -848,6 +905,7 @@
   function showLocationError(kind, accuracy) {
     gpsLocked = false;
     currentPosition = null;
+
     let short = 'Location unavailable.';
     if (kind === 'permission')  short = 'Location permission needed';
     if (kind === 'inaccurate')  short = `Accuracy too poor · ${accuracy} m`;
@@ -883,6 +941,7 @@
         <button type="button" class="msg-retry" id="retryLocBtn">Retry</button></div>`;
     }
     msgArea.innerHTML = html;
+
     const btn = $('retryLocBtn');
     if (btn) btn.addEventListener('click', () => {
       if (kind === 'permission') location.reload();
@@ -890,6 +949,9 @@
     });
   }
 
+  // ═══════════════════════════════════════════════════════════════════
+  // Client-side lockout
+  // ═══════════════════════════════════════════════════════════════════
   const lockKey = name => 'goolee_lockout_' + name;
   function getLock(name) {
     try {
@@ -912,6 +974,9 @@
   }
   function clearLock(name) { setLock(name, { tries: 0, until: 0 }); }
 
+  // ═══════════════════════════════════════════════════════════════════
+  // Buttons
+  // ═══════════════════════════════════════════════════════════════════
   function updateButtons() {
     const ready = gpsLocked && !!currentPosition;
     clockInBtn.disabled  = !ready;
@@ -924,15 +989,21 @@
     pinInput.value = pinInput.value.replace(/[^0-9]/g, '').slice(0, 4);
   });
 
+  // ═══════════════════════════════════════════════════════════════════
+  // Submit
+  // ═══════════════════════════════════════════════════════════════════
   async function submitPunch(action) {
     msgArea.innerHTML = '';
+
     const name = employeeSelect.value;
     const pin  = pinInput.value;
+
     if (!name) { showFormError('Select your name first.'); return; }
     if (isLocked(name)) {
       const s = getLock(name);
       const mins = Math.ceil((s.until - Date.now()) / 60000);
       showFormError(`Too many incorrect PIN attempts. Try again in ${mins} minute${mins===1?'':'s'}.`);
+      showBlockedPopup('locked_out', `Too many incorrect PIN attempts. Try again in ${mins} minute${mins===1?'':'s'}.`);
       return;
     }
     if (pin.length !== 4) { showFormError('Enter your 4-digit PIN.'); return; }
@@ -940,10 +1011,13 @@
       showFormError('Waiting on a valid location — buttons unlock once GPS is ready.');
       return;
     }
+
     clockInBtn.disabled = true;
     clockOutBtn.disabled = true;
+
     try {
       const pinHash = await hashPin(pin);
+
       const res = await jsonp({
         action: 'punch',
         name,
@@ -953,20 +1027,30 @@
         lng: String(currentPosition.lng),
         accuracy: String(currentPosition.accuracy)
       });
+
       if (!res.ok) {
         if (res.reason === 'bad_pin') recordFail(name);
 
-        // All blocked punches → red error
+        // Inline error message text
+        let inlineText = res.message || 'Punch could not be recorded.';
         if (res.reason === 'already_clocked_in') {
           const t = res.existingTime || 'earlier today';
-          showFormError('You have already clocked in today at ' + t + '. Only one clock-in per day is allowed.');
+          inlineText = 'You have already clocked in today at ' + t + '. Only one clock-in per day is allowed.';
         } else if (res.reason === 'already_clocked_out') {
           const t = res.existingTime || 'earlier today';
-          showFormError('You have already clocked out today at ' + t + '. Only one clock-out per day is allowed.');
+          inlineText = 'You have already clocked out today at ' + t + '. Only one clock-out per day is allowed.';
         } else if (res.reason === 'no_clock_in') {
-          showFormError("You haven't clocked in today yet. Please Clock In first before Clock Out.");
-        } else {
-          showFormError(res.message || 'Punch could not be recorded.');
+          inlineText = "You haven't clocked in today yet. Please Clock In first before Clock Out.";
+        }
+        showFormError(inlineText);
+
+        // Popup for meaningful reasons
+        const popupReasons = [
+          'already_clocked_in', 'already_clocked_out', 'no_clock_in',
+          'bad_pin', 'locked_out', 'bad_gps', 'unknown_employee'
+        ];
+        if (popupReasons.indexOf(res.reason) !== -1) {
+          showBlockedPopup(res.reason, res.message, res.existingTime);
         }
       } else {
         clearLock(name);
@@ -981,37 +1065,125 @@
     }
   }
 
+  // ═══════════════════════════════════════════════════════════════════
+  // Inline messages
+  // ═══════════════════════════════════════════════════════════════════
   function showFormError(text) {
     pinInput.value = '';
     msgArea.innerHTML =
       `<div class="msg msg-error"><span class="msg-title">Couldn't complete that.</span>${escapeHtml(text)}</div>`;
   }
 
+  // ═══════════════════════════════════════════════════════════════════
+  // Success popup (green)
+  // ═══════════════════════════════════════════════════════════════════
   function showConfirmation(data) {
-    okTitle.textContent = data.action === 'IN' ? 'Clocked In!' : 'Clocked Out!';
+    overlayCard.className = 'overlay-card';
+    overlayIconSvg.innerHTML = '<polyline points="20 6 9 17 4 12"/>';
+
+    okTitle.textContent = data.punchType === 'Clock In' ? 'Clocked In!' : 'Clocked Out!';
     okName.textContent  = escapeHtml(data.name || data.employee || '');
-    const acc = data.accuracy != null ? Math.round(data.accuracy) + ' m' : '—';
+
+    const acc  = data.accuracy != null ? Math.round(data.accuracy) + ' m' : '—';
     const maps = data.mapsLink || '#';
+
     okMeta.innerHTML = `
+      <div class="row"><span class="label">Action</span><span class="value">${escapeHtml(data.punchType || '—')}</span></div>
       <div class="row"><span class="label">Date</span><span class="value">${escapeHtml(data.date || '—')}</span></div>
       <div class="row"><span class="label">Time</span><span class="value">${escapeHtml(data.time || '—')}</span></div>
       <div class="row"><span class="label">Location</span><span class="value">±${escapeHtml(acc)}</span></div>
       <div class="row"><span class="label">Map</span><span class="value"><a href="${escapeHtml(maps)}" target="_blank" rel="noopener" style="color:inherit;text-decoration:underline;">Open</a></span></div>
     `;
+    $('okClose').textContent = 'Done';
     overlay.hidden = false;
     $('okClose').focus();
   }
 
+  // ═══════════════════════════════════════════════════════════════════
+  // Blocked popup (amber warning / red error)
+  // ═══════════════════════════════════════════════════════════════════
+  function showBlockedPopup(reason, message, existingTime) {
+    // Duplicates and no-clock-in are warnings; everything else is an error
+    const isWarning = (
+      reason === 'already_clocked_in' ||
+      reason === 'already_clocked_out' ||
+      reason === 'no_clock_in'
+    );
+
+    overlayCard.className = 'overlay-card' + (isWarning ? ' overlay--warn' : ' overlay--error');
+
+    // Icons
+    if (isWarning) {
+      overlayIconSvg.innerHTML =
+        '<circle cx="12" cy="12" r="10"/>' +
+        '<line x1="12" y1="8" x2="12" y2="12"/>' +
+        '<line x1="12" y1="16" x2="12.01" y2="16"/>';
+    } else {
+      overlayIconSvg.innerHTML =
+        '<circle cx="12" cy="12" r="10"/>' +
+        '<line x1="15" y1="9" x2="9" y2="15"/>' +
+        '<line x1="9" y1="9" x2="15" y2="15"/>';
+    }
+
+    // Title
+    const titles = {
+      'already_clocked_in':  'Already Clocked In',
+      'already_clocked_out': 'Already Clocked Out',
+      'no_clock_in':         'No Clock-In Found',
+      'bad_pin':             'Incorrect PIN',
+      'locked_out':          'Temporarily Locked',
+      'bad_gps':             'Location Problem',
+      'unknown_employee':    'Employee Not Found'
+    };
+    okTitle.textContent = titles[reason] || 'Punch Not Recorded';
+    okName.textContent  = escapeHtml(employeeSelect.value || '');
+
+    // Meta rows
+    let meta = '';
+    if (reason === 'already_clocked_in') {
+      meta = `
+        <div class="row"><span class="label">Status</span><span class="value">Already clocked in</span></div>
+        ${existingTime ? `<div class="row"><span class="label">Earlier punch</span><span class="value">${escapeHtml(existingTime)}</span></div>` : ''}
+        <div class="row"><span class="label">Rule</span><span class="value">One clock-in per day</span></div>
+      `;
+    } else if (reason === 'already_clocked_out') {
+      meta = `
+        <div class="row"><span class="label">Status</span><span class="value">Already clocked out</span></div>
+        ${existingTime ? `<div class="row"><span class="label">Earlier punch</span><span class="value">${escapeHtml(existingTime)}</span></div>` : ''}
+        <div class="row"><span class="label">Rule</span><span class="value">One clock-out per day</span></div>
+      `;
+    } else if (reason === 'no_clock_in') {
+      meta = `
+        <div class="row"><span class="label">Status</span><span class="value">No clock-in today</span></div>
+        <div class="row"><span class="label">Next step</span><span class="value">Clock In first</span></div>
+      `;
+    } else {
+      meta = `<div class="row"><span class="label">Message</span><span class="value">${escapeHtml(message || '—')}</span></div>`;
+    }
+    okMeta.innerHTML = meta;
+
+    $('okClose').textContent = 'Got it';
+    overlay.hidden = false;
+    $('okClose').focus();
+  }
+
+  // ═══════════════════════════════════════════════════════════════════
+  // Overlay close
+  // ═══════════════════════════════════════════════════════════════════
   $('okClose').addEventListener('click', () => { overlay.hidden = true; });
   overlay.addEventListener('click', e => {
     if (e.target === overlay) overlay.hidden = true;
   });
 
+  // ═══════════════════════════════════════════════════════════════════
+  // Boot
+  // ═══════════════════════════════════════════════════════════════════
   window.addEventListener('error', e => console.error('Error:', e.error || e.message));
   window.addEventListener('unhandledrejection', e => console.error('Rejection:', e.reason));
 
   loadEmployees();
   requestLocation();
+
 })();
 </script>
 </body>

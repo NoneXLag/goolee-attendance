@@ -10,84 +10,38 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600;9..144,700&family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 <style>
-  /* ═══════════════════════════════════════════════════════════════
-     DESIGN TOKENS
-     ═══════════════════════════════════════════════════════════════ */
   :root{
-    --teal-900:#0A2E28;
-    --teal-800:#0F4038;
-    --teal-700:#175A4F;
-    --teal-600:#176B5D;
-    --teal-500:#1E8574;
-    --teal-400:#3EA893;
-    --teal-100:#DCEFEA;
-    --teal-50:#EEF6F3;
-
-    --green-600:#1F9D64;
-    --green-500:#26B573;
-    --green-100:#DFF5E9;
-
-    --red-600:#C1392B;
-    --red-500:#D94A38;
-    --red-100:#FBE5E0;
-
-    --amber-600:#B67A0F;
-    --amber-100:#FDF0D5;
-
-    --ink-900:#0E1414;
-    --ink-700:#2B3534;
-    --ink-500:#5B6866;
-    --ink-400:#8A9694;
-    --ink-300:#B5BFBD;
-
-    --line:#E5EBE9;
-    --line-strong:#D2DAD7;
-
-    --surface:#FFFFFF;
-    --surface-alt:#F6F9F8;
-
-    --radius-sm:10px;
-    --radius:14px;
-    --radius-lg:22px;
-    --radius-xl:28px;
-
+    --teal-900:#0A2E28; --teal-800:#0F4038; --teal-700:#175A4F;
+    --teal-600:#176B5D; --teal-500:#1E8574; --teal-400:#3EA893;
+    --teal-100:#DCEFEA; --teal-50:#EEF6F3;
+    --green-600:#1F9D64; --green-500:#26B573; --green-100:#DFF5E9;
+    --red-600:#C1392B; --red-500:#D94A38; --red-100:#FBE5E0;
+    --amber-600:#B67A0F; --amber-100:#FDF0D5;
+    --ink-900:#0E1414; --ink-700:#2B3534; --ink-500:#5B6866;
+    --ink-400:#8A9694; --ink-300:#B5BFBD;
+    --line:#E5EBE9; --line-strong:#D2DAD7;
+    --surface:#FFFFFF; --surface-alt:#F6F9F8;
+    --radius-sm:10px; --radius:14px; --radius-lg:22px; --radius-xl:28px;
     --shadow-sm:0 1px 3px rgba(15,64,56,.06), 0 1px 2px rgba(15,64,56,.04);
     --shadow-md:0 6px 24px rgba(15,64,56,.08), 0 2px 6px rgba(15,64,56,.05);
     --shadow-lg:0 24px 60px rgba(15,64,56,.12), 0 8px 20px rgba(15,64,56,.06);
-    --shadow-brand:0 16px 40px rgba(15,64,56,.28);
-
     --ease:cubic-bezier(.4, 0, .2, 1);
   }
-
-  /* ═══════════════════════════════════════════════════════════════
-     RESET + BASE
-     ═══════════════════════════════════════════════════════════════ */
   *, *::before, *::after{ box-sizing:border-box; }
   html{ -webkit-text-size-adjust:100%; }
   body{
     margin:0;
     font-family:'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-    font-size:15px;
-    line-height:1.55;
-    color:var(--ink-900);
+    font-size:15px; line-height:1.55; color:var(--ink-900);
     background:var(--surface-alt);
-    -webkit-font-smoothing:antialiased;
-    -moz-osx-font-smoothing:grayscale;
+    -webkit-font-smoothing:antialiased; -moz-osx-font-smoothing:grayscale;
     overflow-x:hidden;
   }
-
-  /* ═══════════════════════════════════════════════════════════════
-     LAYOUT — split screen on desktop
-     ═══════════════════════════════════════════════════════════════ */
   .shell{
     display:grid;
     grid-template-columns:minmax(380px, 42%) 1fr;
     min-height:100svh;
   }
-
-  /* ═══════════════════════════════════════════════════════════════
-     LEFT PANEL — brand / hero
-     ═══════════════════════════════════════════════════════════════ */
   .brand-panel{
     position:relative;
     padding:56px 56px 48px;
@@ -96,17 +50,11 @@
       radial-gradient(circle at 85% 90%, rgba(30,133,116,.35) 0%, transparent 45%),
       linear-gradient(160deg, var(--teal-900) 0%, var(--teal-800) 60%, var(--teal-700) 100%);
     color:#fff;
-    display:flex;
-    flex-direction:column;
-    justify-content:space-between;
+    display:flex; flex-direction:column; justify-content:space-between;
     overflow:hidden;
   }
-
-  /* Decorative grid pattern */
   .brand-panel::before{
-    content:"";
-    position:absolute;
-    inset:0;
+    content:""; position:absolute; inset:0;
     background-image:
       linear-gradient(rgba(255,255,255,.035) 1px, transparent 1px),
       linear-gradient(90deg, rgba(255,255,255,.035) 1px, transparent 1px);
@@ -115,91 +63,46 @@
     -webkit-mask-image:radial-gradient(circle at 50% 40%, #000 30%, transparent 75%);
     pointer-events:none;
   }
-
   .brand-panel::after{
-    content:"";
-    position:absolute;
-    bottom:-160px; right:-160px;
-    width:400px; height:400px;
-    border-radius:50%;
+    content:""; position:absolute; bottom:-160px; right:-160px;
+    width:400px; height:400px; border-radius:50%;
     background:radial-gradient(circle, rgba(62,168,147,.22) 0%, transparent 70%);
     pointer-events:none;
   }
-
   .brand-panel > *{ position:relative; z-index:1; }
-
-  /* Logo row */
-  .brand-logo-row{
-    display:flex;
-    align-items:center;
-    gap:14px;
-  }
-
+  .brand-logo-row{ display:flex; align-items:center; gap:14px; }
   .logo-mark{
-    width:52px; height:52px;
-    border-radius:14px;
+    width:52px; height:52px; border-radius:14px;
     background:linear-gradient(135deg, #fff 0%, #DCEFEA 100%);
     color:var(--teal-800);
-    display:flex;
-    align-items:center;
-    justify-content:center;
-    font-family:'Fraunces', serif;
-    font-weight:700;
-    font-size:26px;
+    display:flex; align-items:center; justify-content:center;
+    font-family:'Fraunces', serif; font-weight:700; font-size:26px;
     flex-shrink:0;
-    box-shadow:
-      0 12px 28px rgba(0,0,0,.25),
-      inset 0 1px 0 rgba(255,255,255,.6);
+    box-shadow:0 12px 28px rgba(0,0,0,.25), inset 0 1px 0 rgba(255,255,255,.6);
     letter-spacing:-.02em;
   }
-
-  .logo-text{
-    display:flex;
-    flex-direction:column;
-    gap:2px;
-  }
+  .logo-text{ display:flex; flex-direction:column; gap:2px; }
   .logo-text .wordmark{
-    font-family:'Fraunces', serif;
-    font-weight:600;
-    font-size:21px;
-    line-height:1.1;
-    letter-spacing:-.01em;
+    font-family:'Fraunces', serif; font-weight:600;
+    font-size:21px; line-height:1.1; letter-spacing:-.01em;
   }
   .logo-text .tagline{
-    font-size:11px;
-    font-weight:600;
-    letter-spacing:.18em;
-    text-transform:uppercase;
-    color:rgba(255,255,255,.55);
+    font-size:11px; font-weight:600; letter-spacing:.18em;
+    text-transform:uppercase; color:rgba(255,255,255,.55);
   }
-
-  /* Hero */
-  .hero{
-    margin:auto 0;
-    padding:48px 0 32px;
-    max-width:520px;
-  }
-
+  .hero{ margin:auto 0; padding:48px 0 32px; max-width:520px; }
   .eyebrow{
-    display:inline-flex;
-    align-items:center;
-    gap:8px;
-    padding:7px 12px;
-    border-radius:999px;
+    display:inline-flex; align-items:center; gap:8px;
+    padding:7px 12px; border-radius:999px;
     background:rgba(255,255,255,.08);
     border:1px solid rgba(255,255,255,.14);
-    font-size:11px;
-    font-weight:700;
-    letter-spacing:.12em;
-    text-transform:uppercase;
-    color:rgba(255,255,255,.85);
+    font-size:11px; font-weight:700; letter-spacing:.12em;
+    text-transform:uppercase; color:rgba(255,255,255,.85);
     margin-bottom:24px;
-    backdrop-filter:blur(8px);
-    -webkit-backdrop-filter:blur(8px);
+    backdrop-filter:blur(8px); -webkit-backdrop-filter:blur(8px);
   }
   .eyebrow .dot{
-    width:6px; height:6px;
-    border-radius:50%;
+    width:6px; height:6px; border-radius:50%;
     background:var(--teal-400);
     box-shadow:0 0 0 3px rgba(62,168,147,.25);
     animation:pulseDot 2.4s ease-in-out infinite;
@@ -208,162 +111,81 @@
     0%, 100%{ opacity:1; transform:scale(1); }
     50%{ opacity:.6; transform:scale(1.15); }
   }
-
   .hero h1{
-    font-family:'Fraunces', serif;
-    font-weight:500;
+    font-family:'Fraunces', serif; font-weight:500;
     font-size:clamp(38px, 4.4vw, 56px);
-    line-height:1.05;
-    letter-spacing:-.025em;
-    margin:0 0 20px;
-    color:#fff;
+    line-height:1.05; letter-spacing:-.025em;
+    margin:0 0 20px; color:#fff;
   }
-  .hero h1 em{
-    font-style:italic;
-    font-weight:600;
-    color:var(--teal-400);
-  }
-
+  .hero h1 em{ font-style:italic; font-weight:600; color:var(--teal-400); }
   .hero p{
-    font-size:16px;
-    line-height:1.6;
-    color:rgba(255,255,255,.72);
-    margin:0;
-    max-width:440px;
+    font-size:16px; line-height:1.6;
+    color:rgba(255,255,255,.72); margin:0; max-width:440px;
   }
-
-  /* Feature list */
-  .features{
-    display:grid;
-    gap:14px;
-    margin-top:40px;
-  }
+  .features{ display:grid; gap:14px; margin-top:40px; }
   .feature{
-    display:flex;
-    align-items:flex-start;
-    gap:14px;
+    display:flex; align-items:flex-start; gap:14px;
     padding:14px 16px;
     background:rgba(255,255,255,.05);
     border:1px solid rgba(255,255,255,.09);
     border-radius:var(--radius);
-    backdrop-filter:blur(10px);
-    -webkit-backdrop-filter:blur(10px);
+    backdrop-filter:blur(10px); -webkit-backdrop-filter:blur(10px);
   }
   .feature-icon{
-    width:34px; height:34px;
-    border-radius:9px;
-    background:rgba(62,168,147,.18);
-    color:var(--teal-400);
-    display:flex;
-    align-items:center;
-    justify-content:center;
+    width:34px; height:34px; border-radius:9px;
+    background:rgba(62,168,147,.18); color:var(--teal-400);
+    display:flex; align-items:center; justify-content:center;
     flex-shrink:0;
   }
   .feature-icon svg{ width:18px; height:18px; }
-  .feature-text{
-    display:flex;
-    flex-direction:column;
-    gap:2px;
-    min-width:0;
-  }
+  .feature-text{ display:flex; flex-direction:column; gap:2px; min-width:0; }
   .feature-title{
-    font-size:13.5px;
-    font-weight:700;
-    color:#fff;
-    letter-spacing:-.005em;
+    font-size:13.5px; font-weight:700; color:#fff; letter-spacing:-.005em;
   }
-  .feature-sub{
-    font-size:12.5px;
-    line-height:1.5;
-    color:rgba(255,255,255,.6);
-  }
-
-  /* Panel footer */
+  .feature-sub{ font-size:12.5px; line-height:1.5; color:rgba(255,255,255,.6); }
   .brand-footer{
-    display:flex;
-    align-items:center;
-    justify-content:space-between;
-    gap:20px;
-    padding-top:24px;
+    display:flex; align-items:center; justify-content:space-between;
+    gap:20px; padding-top:24px;
     border-top:1px solid rgba(255,255,255,.08);
-    font-size:12px;
-    color:rgba(255,255,255,.5);
+    font-size:12px; color:rgba(255,255,255,.5);
   }
   .brand-footer .time{
-    font-family:'Fraunces', serif;
-    font-weight:500;
+    font-family:'Fraunces', serif; font-weight:500;
     font-variant-numeric:tabular-nums;
-    color:rgba(255,255,255,.75);
-    font-size:13px;
+    color:rgba(255,255,255,.75); font-size:13px;
   }
-
-  /* ═══════════════════════════════════════════════════════════════
-     RIGHT PANEL — form
-     ═══════════════════════════════════════════════════════════════ */
   .form-panel{
     padding:56px clamp(32px, 6vw, 88px);
-    display:flex;
-    align-items:center;
-    justify-content:center;
-    background:var(--surface-alt);
-    position:relative;
+    display:flex; align-items:center; justify-content:center;
+    background:var(--surface-alt); position:relative;
   }
-
-  .form-wrap{
-    width:100%;
-    max-width:480px;
-  }
-
-  .form-header{
-    margin-bottom:32px;
-  }
+  .form-wrap{ width:100%; max-width:480px; }
+  .form-header{ margin-bottom:32px; }
   .form-header .greeting{
-    font-size:13px;
-    font-weight:700;
-    letter-spacing:.1em;
-    text-transform:uppercase;
-    color:var(--teal-600);
-    margin-bottom:8px;
+    font-size:13px; font-weight:700; letter-spacing:.1em;
+    text-transform:uppercase; color:var(--teal-600); margin-bottom:8px;
   }
   .form-header h2{
-    font-family:'Fraunces', serif;
-    font-weight:600;
-    font-size:30px;
-    line-height:1.15;
-    letter-spacing:-.02em;
-    margin:0 0 8px;
-    color:var(--ink-900);
+    font-family:'Fraunces', serif; font-weight:600;
+    font-size:30px; line-height:1.15; letter-spacing:-.02em;
+    margin:0 0 8px; color:var(--ink-900);
   }
-  .form-header p{
-    font-size:14.5px;
-    color:var(--ink-500);
-    margin:0;
-  }
-
-  /* Location status pill */
+  .form-header p{ font-size:14.5px; color:var(--ink-500); margin:0; }
   .location-status{
-    display:flex;
-    align-items:center;
-    gap:12px;
+    display:flex; align-items:center; gap:12px;
     padding:14px 16px;
     background:var(--amber-100);
     border:1px solid rgba(182,122,15,.18);
     border-radius:var(--radius);
     margin-bottom:24px;
-    font-size:13.5px;
-    font-weight:600;
-    color:var(--amber-600);
+    font-size:13.5px; font-weight:600; color:var(--amber-600);
     transition:all .3s var(--ease);
   }
   .location-status .icon{
-    width:20px; height:20px;
-    border-radius:50%;
+    width:20px; height:20px; border-radius:50%;
     background:currentColor;
-    display:flex;
-    align-items:center;
-    justify-content:center;
-    flex-shrink:0;
-    color:var(--amber-100);
+    display:flex; align-items:center; justify-content:center;
+    flex-shrink:0; color:var(--amber-100);
   }
   .location-status .icon svg{ width:11px; height:11px; }
   .location-status.is-ready{
@@ -386,415 +208,202 @@
   }
   .location-status.is-locating .icon svg{ display:none; }
   @keyframes spin{ to{ transform:rotate(360deg); } }
-
-  /* Form fields */
-  .field{
-    margin-bottom:20px;
-  }
+  .field{ margin-bottom:20px; }
   .field-label{
-    display:flex;
-    align-items:center;
-    gap:8px;
-    font-size:12px;
-    font-weight:700;
-    letter-spacing:.06em;
-    text-transform:uppercase;
-    color:var(--ink-500);
-    margin-bottom:8px;
+    display:flex; align-items:center; gap:8px;
+    font-size:12px; font-weight:700; letter-spacing:.06em;
+    text-transform:uppercase; color:var(--ink-500); margin-bottom:8px;
   }
   .field-label svg{ width:14px; height:14px; color:var(--teal-600); }
-
   .field input,
   .field select{
-    width:100%;
-    height:56px;
-    padding:0 18px;
-    font-family:inherit;
-    font-size:15.5px;
-    font-weight:500;
-    color:var(--ink-900);
-    background:#fff;
+    width:100%; height:56px; padding:0 18px;
+    font-family:inherit; font-size:15.5px; font-weight:500;
+    color:var(--ink-900); background:#fff;
     border:1.5px solid var(--line-strong);
-    border-radius:var(--radius);
-    outline:none;
-    appearance:none;
-    -webkit-appearance:none;
+    border-radius:var(--radius); outline:none;
+    appearance:none; -webkit-appearance:none;
     transition:all .18s var(--ease);
   }
   .field input::placeholder{ color:var(--ink-300); }
-
-  .field input:hover,
-  .field select:hover{
-    border-color:#B8C2BF;
-  }
-  .field input:focus,
-  .field select:focus{
+  .field input:hover, .field select:hover{ border-color:#B8C2BF; }
+  .field input:focus, .field select:focus{
     border-color:var(--teal-600);
     box-shadow:0 0 0 4px rgba(23,107,93,.1);
   }
-
   .field select{
     background-image:url("data:image/svg+xml;charset=UTF-8,%3csvg xmlns='http://www.w3.org/2000/svg' width='14' height='9' viewBox='0 0 14 9'%3e%3cpath d='M1 1l6 6 6-6' stroke='%235B6866' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round' fill='none'/%3e%3c/svg%3e");
     background-repeat:no-repeat;
     background-position:right 18px center;
-    padding-right:46px;
-    cursor:pointer;
+    padding-right:46px; cursor:pointer;
   }
-
   .field input.pin{
-    text-align:center;
-    font-size:22px;
-    font-weight:700;
+    text-align:center; font-size:22px; font-weight:700;
     letter-spacing:.5em;
     padding-left:calc(18px + .5em);
     font-variant-numeric:tabular-nums;
   }
-
-  /* Punch buttons */
   .actions{
-    display:grid;
-    grid-template-columns:1fr 1fr;
-    gap:12px;
-    margin-top:24px;
+    display:grid; grid-template-columns:1fr 1fr;
+    gap:12px; margin-top:24px;
   }
-
   .btn-punch{
     position:relative;
-    display:flex;
-    align-items:center;
-    justify-content:center;
-    gap:9px;
-    height:60px;
-    padding:0 20px;
-    font-family:inherit;
-    font-size:15px;
-    font-weight:700;
-    letter-spacing:-.005em;
-    color:#fff;
-    border:none;
-    border-radius:var(--radius);
-    cursor:pointer;
+    display:flex; align-items:center; justify-content:center; gap:9px;
+    height:60px; padding:0 20px;
+    font-family:inherit; font-size:15px; font-weight:700;
+    letter-spacing:-.005em; color:#fff;
+    border:none; border-radius:var(--radius); cursor:pointer;
     overflow:hidden;
     transition:all .15s var(--ease);
     -webkit-tap-highlight-color:transparent;
     touch-action:manipulation;
   }
-  .btn-punch svg{
-    width:20px; height:20px;
-    flex-shrink:0;
-  }
-  .btn-punch:not(:disabled):hover{
-    transform:translateY(-1px);
-  }
-  .btn-punch:not(:disabled):active{
-    transform:translateY(0);
-  }
-  .btn-punch:disabled{
-    opacity:.4;
-    cursor:not-allowed;
-  }
-
+  .btn-punch svg{ width:20px; height:20px; flex-shrink:0; }
+  .btn-punch:not(:disabled):hover{ transform:translateY(-1px); }
+  .btn-punch:not(:disabled):active{ transform:translateY(0); }
+  .btn-punch:disabled{ opacity:.4; cursor:not-allowed; }
   .btn-in{
     background:linear-gradient(180deg, var(--green-500) 0%, var(--green-600) 100%);
-    box-shadow:
-      0 1px 0 rgba(255,255,255,.2) inset,
-      0 6px 16px rgba(31,157,100,.3);
+    box-shadow:0 1px 0 rgba(255,255,255,.2) inset, 0 6px 16px rgba(31,157,100,.3);
   }
   .btn-in:not(:disabled):hover{
-    box-shadow:
-      0 1px 0 rgba(255,255,255,.2) inset,
-      0 8px 20px rgba(31,157,100,.4);
+    box-shadow:0 1px 0 rgba(255,255,255,.2) inset, 0 8px 20px rgba(31,157,100,.4);
   }
-
   .btn-out{
     background:linear-gradient(180deg, var(--red-500) 0%, var(--red-600) 100%);
-    box-shadow:
-      0 1px 0 rgba(255,255,255,.2) inset,
-      0 6px 16px rgba(193,57,43,.3);
+    box-shadow:0 1px 0 rgba(255,255,255,.2) inset, 0 6px 16px rgba(193,57,43,.3);
   }
   .btn-out:not(:disabled):hover{
-    box-shadow:
-      0 1px 0 rgba(255,255,255,.2) inset,
-      0 8px 20px rgba(193,57,43,.4);
+    box-shadow:0 1px 0 rgba(255,255,255,.2) inset, 0 8px 20px rgba(193,57,43,.4);
   }
-
-  /* Messages */
-  .msg-area{
-    margin-top:20px;
-  }
+  .msg-area{ margin-top:20px; }
   .msg{
-    padding:16px 18px;
-    border-radius:var(--radius);
-    font-size:13.5px;
-    line-height:1.6;
+    padding:16px 18px; border-radius:var(--radius);
+    font-size:13.5px; line-height:1.6;
     animation:slideIn .28s var(--ease);
   }
   @keyframes slideIn{
     from{ opacity:0; transform:translateY(-4px); }
     to{ opacity:1; transform:translateY(0); }
   }
-
   .msg-success{
     background:var(--green-100);
     border:1px solid rgba(31,157,100,.2);
     color:#0F5A38;
   }
   .msg-success .msg-title{
-    display:block;
-    font-size:15px;
-    font-weight:700;
-    margin-bottom:6px;
-    color:var(--green-600);
+    display:block; font-size:15px; font-weight:700;
+    margin-bottom:6px; color:var(--green-600);
   }
-  .msg-success .msg-link{
-    display:inline-flex;
-    align-items:center;
-    gap:6px;
-    margin-top:10px;
-    font-size:12.5px;
-    font-weight:700;
-    color:var(--green-600);
-    text-decoration:none;
-    border-bottom:1px solid rgba(31,157,100,.3);
-    padding-bottom:1px;
-  }
-  .msg-success .msg-link:hover{ border-bottom-color:var(--green-600); }
-
   .msg-error{
     background:var(--red-100);
     border:1px solid rgba(193,57,43,.2);
     color:var(--red-600);
   }
   .msg-error .msg-title{
-    display:block;
-    font-size:14px;
-    font-weight:700;
-    margin-bottom:8px;
+    display:block; font-size:14px; font-weight:700; margin-bottom:8px;
   }
-  .msg-error ol, .msg-error ul{
-    margin:8px 0 0;
-    padding-left:20px;
-  }
+  .msg-error ol, .msg-error ul{ margin:8px 0 0; padding-left:20px; }
   .msg-error li{ margin-bottom:4px; }
   .msg-error p{ margin:8px 0 2px; font-weight:700; font-size:12.5px; }
-
   .msg-retry{
-    display:inline-flex;
-    align-items:center;
-    gap:6px;
-    margin-top:14px;
-    padding:9px 16px;
-    font-family:inherit;
-    font-size:13px;
-    font-weight:700;
-    color:var(--red-600);
-    background:#fff;
-    border:1.5px solid var(--red-600);
-    border-radius:9px;
-    cursor:pointer;
-    transition:all .15s var(--ease);
+    display:inline-flex; align-items:center; gap:6px;
+    margin-top:14px; padding:9px 16px;
+    font-family:inherit; font-size:13px; font-weight:700;
+    color:var(--red-600); background:#fff;
+    border:1.5px solid var(--red-600); border-radius:9px;
+    cursor:pointer; transition:all .15s var(--ease);
   }
-  .msg-retry:hover{
-    background:var(--red-600);
-    color:#fff;
-  }
-
-  /* Privacy notice */
+  .msg-retry:hover{ background:var(--red-600); color:#fff; }
   .privacy{
-    margin-top:32px;
-    border-top:1px solid var(--line);
-    padding-top:20px;
+    margin-top:32px; border-top:1px solid var(--line); padding-top:20px;
   }
   .privacy summary{
-    display:flex;
-    align-items:center;
-    gap:8px;
-    font-size:12.5px;
-    font-weight:700;
-    color:var(--ink-500);
-    cursor:pointer;
-    list-style:none;
-    padding:4px 0;
-    user-select:none;
+    display:flex; align-items:center; gap:8px;
+    font-size:12.5px; font-weight:700; color:var(--ink-500);
+    cursor:pointer; list-style:none; padding:4px 0; user-select:none;
   }
   .privacy summary::-webkit-details-marker{ display:none; }
-  .privacy summary svg{
-    width:14px; height:14px;
-    color:var(--teal-600);
-    transition:transform .2s var(--ease);
-  }
+  .privacy summary svg{ width:14px; height:14px; color:var(--teal-600); }
   .privacy summary .chev{
-    margin-left:auto;
-    color:var(--ink-400);
+    margin-left:auto; color:var(--ink-400);
     transition:transform .2s var(--ease);
   }
   .privacy[open] summary .chev{ transform:rotate(90deg); }
   .privacy .privacy-text{
-    margin-top:12px;
-    padding:14px 16px;
-    background:var(--teal-50);
-    border-radius:var(--radius-sm);
-    font-size:12.5px;
-    line-height:1.65;
-    color:var(--ink-500);
+    margin-top:12px; padding:14px 16px;
+    background:var(--teal-50); border-radius:var(--radius-sm);
+    font-size:12.5px; line-height:1.65; color:var(--ink-500);
   }
-
-  /* Footer */
   .form-footer{
     margin-top:24px;
-    display:flex;
-    align-items:center;
-    justify-content:space-between;
-    gap:16px;
-    font-size:11.5px;
-    color:var(--ink-400);
+    display:flex; align-items:center; justify-content:space-between;
+    gap:16px; font-size:11.5px; color:var(--ink-400);
   }
   .secure-badge{
-    display:inline-flex;
-    align-items:center;
-    gap:6px;
-    font-weight:600;
-    color:var(--ink-500);
+    display:inline-flex; align-items:center; gap:6px;
+    font-weight:600; color:var(--ink-500);
   }
-  .secure-badge svg{
-    width:13px; height:13px;
-    color:var(--teal-600);
-  }
+  .secure-badge svg{ width:13px; height:13px; color:var(--teal-600); }
 
-  /* ═══════════════════════════════════════════════════════════════
-     MOBILE — stack, full-screen, mobile-first card
-     ═══════════════════════════════════════════════════════════════ */
   @media (max-width: 960px){
-    .shell{
-      grid-template-columns:1fr;
-      min-height:100svh;
-    }
-
+    .shell{ grid-template-columns:1fr; min-height:100svh; }
     .brand-panel{
-      padding:32px 24px 40px;
-      min-height:auto;
+      padding:32px 24px 40px; min-height:auto;
       border-radius:0 0 28px 28px;
     }
     .brand-panel::after{ display:none; }
-
-    .hero{
-      padding:32px 0 16px;
-      max-width:none;
-    }
-    .hero h1{
-      font-size:clamp(32px, 7vw, 40px);
-      margin-bottom:14px;
-    }
-    .hero p{
-      font-size:14.5px;
-      max-width:none;
-    }
-    .eyebrow{
-      font-size:10.5px;
-      padding:6px 10px;
-      margin-bottom:18px;
-    }
-
-    .features{
-      grid-template-columns:1fr;
-      gap:10px;
-      margin-top:26px;
-    }
-    .feature{
-      padding:12px 14px;
-    }
+    .hero{ padding:32px 0 16px; max-width:none; }
+    .hero h1{ font-size:clamp(32px, 7vw, 40px); margin-bottom:14px; }
+    .hero p{ font-size:14.5px; max-width:none; }
+    .eyebrow{ font-size:10.5px; padding:6px 10px; margin-bottom:18px; }
+    .features{ grid-template-columns:1fr; gap:10px; margin-top:26px; }
+    .feature{ padding:12px 14px; }
     .feature-sub{ display:none; }
-
-    .brand-footer{
-      padding-top:20px;
-      font-size:11.5px;
-    }
-
+    .brand-footer{ padding-top:20px; font-size:11.5px; }
     .form-panel{
       padding:32px 24px 48px;
-      background:var(--surface);
-      align-items:flex-start;
+      background:var(--surface); align-items:flex-start;
     }
-    .form-header{
-      margin-bottom:24px;
-    }
+    .form-header{ margin-bottom:24px; }
     .form-header h2{ font-size:24px; }
   }
-
   @media (max-width: 480px){
-    .brand-panel{
-      padding:26px 20px 32px;
-    }
-    .logo-mark{
-      width:44px; height:44px;
-      font-size:22px;
-    }
+    .brand-panel{ padding:26px 20px 32px; }
+    .logo-mark{ width:44px; height:44px; font-size:22px; }
     .logo-text .wordmark{ font-size:19px; }
-
     .hero h1{ font-size:30px; }
-
-    .form-panel{
-      padding:26px 20px 40px;
-    }
+    .form-panel{ padding:26px 20px 40px; }
     .form-header h2{ font-size:22px; }
-
-    .actions{
-      grid-template-columns:1fr;
-      gap:10px;
-    }
+    .actions{ grid-template-columns:1fr; gap:10px; }
     .btn-punch{ height:56px; }
-
-    .field input,
-    .field select{
-      height:52px;
-      font-size:15px;
-    }
-    .field input.pin{
-      font-size:20px;
-      letter-spacing:.4em;
-      padding-left:calc(18px + .4em);
-    }
+    .field input, .field select{ height:52px; font-size:15px; }
+    .field input.pin{ font-size:20px; letter-spacing:.4em; padding-left:calc(18px + .4em); }
   }
-
-  /* On wide desktop, limit panel content width for readability */
   @media (min-width: 1400px){
     .brand-panel{ padding:72px 72px 56px; }
     .hero h1{ font-size:60px; }
   }
-
-  /* Reduced motion */
   @media (prefers-reduced-motion: reduce){
     *, *::before, *::after{
       animation-duration:.01ms !important;
       transition-duration:.01ms !important;
     }
   }
-
-  /* ═══════════════════════════════════════════════════════════════
-     SUCCESS OVERLAY
-     ═══════════════════════════════════════════════════════════════ */
   .overlay{
-    position:fixed;
-    inset:0;
+    position:fixed; inset:0;
     background:rgba(10,46,40,.55);
-    backdrop-filter:blur(10px);
-    -webkit-backdrop-filter:blur(10px);
-    display:flex;
-    align-items:center;
-    justify-content:center;
-    padding:24px;
-    z-index:100;
+    backdrop-filter:blur(10px); -webkit-backdrop-filter:blur(10px);
+    display:flex; align-items:center; justify-content:center;
+    padding:24px; z-index:100;
     animation:fadeIn .25s var(--ease);
   }
   .overlay[hidden]{ display:none; }
   @keyframes fadeIn{ from{ opacity:0; } to{ opacity:1; } }
-
   .overlay-card{
-    background:#fff;
-    border-radius:var(--radius-xl);
-    padding:40px 32px 32px;
-    max-width:400px;
-    width:100%;
+    background:#fff; border-radius:var(--radius-xl);
+    padding:40px 32px 32px; max-width:400px; width:100%;
     text-align:center;
     box-shadow:0 40px 100px rgba(10,46,40,.35);
     animation:popIn .35s var(--ease);
@@ -803,15 +412,10 @@
     from{ opacity:0; transform:scale(.94); }
     to{ opacity:1; transform:scale(1); }
   }
-
   .overlay-icon{
-    width:80px; height:80px;
-    margin:0 auto 20px;
-    border-radius:50%;
-    background:var(--green-100);
-    display:flex;
-    align-items:center;
-    justify-content:center;
+    width:80px; height:80px; margin:0 auto 20px;
+    border-radius:50%; background:var(--green-100);
+    display:flex; align-items:center; justify-content:center;
     animation:checkPop .4s var(--ease) .1s both;
   }
   @keyframes checkPop{
@@ -820,62 +424,34 @@
     to{ transform:scale(1); }
   }
   .overlay-icon svg{ width:44px; height:44px; color:var(--green-600); }
-
   .overlay-title{
-    font-family:'Fraunces', serif;
-    font-weight:600;
-    font-size:26px;
-    letter-spacing:-.02em;
-    color:var(--ink-900);
-    margin:0 0 6px;
+    font-family:'Fraunces', serif; font-weight:600;
+    font-size:26px; letter-spacing:-.02em;
+    color:var(--ink-900); margin:0 0 6px;
   }
   .overlay-name{
-    font-size:16px;
-    font-weight:700;
-    color:var(--teal-700);
+    font-size:16px; font-weight:700; color:var(--teal-700);
     margin-bottom:20px;
   }
   .overlay-meta{
-    padding:18px 20px;
-    background:var(--surface-alt);
+    padding:18px 20px; background:var(--surface-alt);
     border-radius:var(--radius);
-    font-size:13.5px;
-    line-height:1.7;
-    color:var(--ink-500);
-    text-align:left;
-    margin-bottom:22px;
+    font-size:13.5px; line-height:1.7; color:var(--ink-500);
+    text-align:left; margin-bottom:22px;
   }
   .overlay-meta .row{
-    display:flex;
-    justify-content:space-between;
-    gap:12px;
-    padding:6px 0;
+    display:flex; justify-content:space-between; gap:12px; padding:6px 0;
   }
-  .overlay-meta .row + .row{
-    border-top:1px solid var(--line);
-  }
-  .overlay-meta .label{
-    font-weight:600;
-    color:var(--ink-400);
-  }
-  .overlay-meta .value{
-    font-weight:700;
-    color:var(--ink-900);
-    text-align:right;
-  }
+  .overlay-meta .row + .row{ border-top:1px solid var(--line); }
+  .overlay-meta .label{ font-weight:600; color:var(--ink-400); }
+  .overlay-meta .value{ font-weight:700; color:var(--ink-900); text-align:right; }
   .overlay-btn{
-    display:flex;
-    align-items:center;
-    justify-content:center;
-    width:100%;
-    height:52px;
-    font-family:inherit;
-    font-size:15px;
-    font-weight:700;
+    display:flex; align-items:center; justify-content:center;
+    width:100%; height:52px;
+    font-family:inherit; font-size:15px; font-weight:700;
     color:#fff;
     background:linear-gradient(180deg, var(--teal-600) 0%, var(--teal-800) 100%);
-    border:none;
-    border-radius:var(--radius);
+    border:none; border-radius:var(--radius);
     cursor:pointer;
     box-shadow:0 6px 18px rgba(15,64,56,.28);
     transition:transform .15s var(--ease);
@@ -887,8 +463,6 @@
 <body>
 
 <div class="shell">
-
-  <!-- ═══════════════ LEFT: BRAND PANEL ═══════════════ -->
   <aside class="brand-panel" aria-hidden="true">
     <div class="brand-logo-row">
       <div class="logo-mark">G</div>
@@ -899,18 +473,9 @@
     </div>
 
     <div class="hero">
-      <span class="eyebrow">
-        <span class="dot"></span>
-        GPS Verified · Live
-      </span>
-
+      <span class="eyebrow"><span class="dot"></span>GPS Verified · Live</span>
       <h1>Clock in, <em>verified</em> by where you are.</h1>
-
-      <p>
-        Tap in and out from any device. Every punch is stamped with your
-        name, PIN, GPS location, and time — so attendance is accurate and
-        effortless.
-      </p>
+      <p>Tap in and out from any device. Every punch is stamped with your name, PIN, GPS location, and time — so attendance is accurate and effortless.</p>
 
       <div class="features">
         <div class="feature">
@@ -925,7 +490,6 @@
             <span class="feature-sub">Every punch is tied to a live coordinate</span>
           </div>
         </div>
-
         <div class="feature">
           <span class="feature-icon">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -938,7 +502,6 @@
             <span class="feature-sub">Only you can clock in as you</span>
           </div>
         </div>
-
         <div class="feature">
           <span class="feature-icon">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -960,17 +523,14 @@
     </footer>
   </aside>
 
-  <!-- ═══════════════ RIGHT: FORM PANEL ═══════════════ -->
   <main class="form-panel" role="main">
     <div class="form-wrap">
-
       <div class="form-header">
         <div class="greeting">Welcome</div>
         <h2>Record your attendance</h2>
         <p>Choose your name, enter your 4-digit PIN, and tap a button.</p>
       </div>
 
-      <!-- Location status -->
       <div id="locationStatus" class="location-status is-locating" role="status" aria-live="polite">
         <span class="icon" aria-hidden="true">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round">
@@ -1015,7 +575,6 @@
             </svg>
             Clock In
           </button>
-
           <button type="button" id="clockOutBtn" class="btn-punch btn-out" disabled>
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round">
               <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/>
@@ -1057,13 +616,10 @@
         </span>
         <span>v5.1</span>
       </div>
-
     </div>
   </main>
-
 </div>
 
-<!-- ═══════════════ SUCCESS OVERLAY ═══════════════ -->
 <div class="overlay" id="overlay" hidden>
   <div class="overlay-card">
     <div class="overlay-icon">
@@ -1082,28 +638,19 @@
 (function(){
   "use strict";
 
-  // ═══════════════════════════════════════════════════════════════════
-  // CONFIG
-  // ═══════════════════════════════════════════════════════════════════
   const CONFIG = {
-    API_URL: "https://script.google.com/macros/s/AKfycbzkMOPy0IMjVaBbQcRBmHby5OIR28cUEonUO0nrvgFWfXcIU63pExq3CWkQIqV-6Dtb/exec",
+    API_URL: "PASTE_YOUR_EXEC_URL_HERE",
     SHEET_URL: "",
     SHOW_HR_LINK: false,
-
     ACCURACY_MAX_M: 100,
     GPS_TIMEOUT_MS: 15000,
     GPS_RETRIES: 3,
     GPS_RETRY_DELAY_MS: 2000,
-
     PIN_MAX_TRIES: 5,
     PIN_LOCKOUT_MS: 5 * 60 * 1000,
-
     REQUEST_TIMEOUT_MS: 25000
   };
 
-  // ═══════════════════════════════════════════════════════════════════
-  // DOM
-  // ═══════════════════════════════════════════════════════════════════
   const $ = id => document.getElementById(id);
   const employeeSelect = $('employeeSelect');
   const pinInput       = $('pinInput');
@@ -1121,7 +668,6 @@
   let gpsAttempt = 0;
   let gpsLocked = false;
 
-  // Live clock in brand panel
   function updateClock() {
     const el = document.getElementById('liveClock');
     if (!el) return;
@@ -1133,13 +679,9 @@
   }
   updateClock();
   setInterval(updateClock, 15000);
-
   const yearEl = document.getElementById('year');
   if (yearEl) yearEl.textContent = new Date().getFullYear();
 
-  // ═══════════════════════════════════════════════════════════════════
-  // Utilities
-  // ═══════════════════════════════════════════════════════════════════
   function escapeHtml(v) {
     return String(v).replace(/[&<>"']/g, ch => ({
       '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'
@@ -1157,16 +699,12 @@
       .join('');
   }
 
-  // ═══════════════════════════════════════════════════════════════════
-  // JSONP transport
-  // ═══════════════════════════════════════════════════════════════════
   function jsonp(fields) {
     return new Promise((resolve, reject) => {
       const cb = 'goolee_cb_' + Date.now() + '_' + Math.random().toString(36).slice(2);
       const params = new URLSearchParams(Object.assign({}, fields, { callback: cb }));
       const script = document.createElement('script');
       let done = false;
-
       const cleanup = () => {
         clearTimeout(timer);
         try { delete window[cb]; } catch (e) { window[cb] = undefined; }
@@ -1178,26 +716,19 @@
         cleanup();
         fn(val);
       };
-
       window[cb] = data => finish(resolve, data || { ok: false, message: 'Empty response.' });
-
       script.onerror = () => finish(reject, new Error(
         'Could not reach the attendance server. Verify the Apps Script is deployed with "Who has access: Anyone".'
       ));
-
       const timer = setTimeout(
         () => finish(reject, new Error('Attendance server did not respond in time.')),
         CONFIG.REQUEST_TIMEOUT_MS
       );
-
       script.src = CONFIG.API_URL + '?' + params.toString();
       document.body.appendChild(script);
     });
   }
 
-  // ═══════════════════════════════════════════════════════════════════
-  // Employee list — 5-minute client-side cache
-  // ═══════════════════════════════════════════════════════════════════
   const EMP_CACHE_KEY = 'goolee_employees_v2';
   const EMP_CACHE_TTL = 5 * 60 * 1000;
 
@@ -1256,9 +787,6 @@
     } catch (e) {}
   }
 
-  // ═══════════════════════════════════════════════════════════════════
-  // GPS
-  // ═══════════════════════════════════════════════════════════════════
   function setLocationState(state, text) {
     locationStatus.className = 'location-status is-' + state;
     locationText.textContent = text;
@@ -1275,13 +803,11 @@
   function attemptLocation() {
     gpsAttempt += 1;
     if (!('geolocation' in navigator)) { showLocationError('unsupported'); return; }
-
     setLocationState('locating',
       gpsAttempt === 1
         ? 'Locating you…'
         : `Still locating… (attempt ${gpsAttempt} of ${CONFIG.GPS_RETRIES})`
     );
-
     navigator.geolocation.getCurrentPosition(onGpsSuccess, onGpsError, {
       enableHighAccuracy: true,
       timeout: CONFIG.GPS_TIMEOUT_MS,
@@ -1322,7 +848,6 @@
   function showLocationError(kind, accuracy) {
     gpsLocked = false;
     currentPosition = null;
-
     let short = 'Location unavailable.';
     if (kind === 'permission')  short = 'Location permission needed';
     if (kind === 'inaccurate')  short = `Accuracy too poor · ${accuracy} m`;
@@ -1332,55 +857,32 @@
 
     let html = '';
     if (kind === 'permission') {
-      html = `
-        <div class="msg msg-error">
-          <span class="msg-title">⚠ Location permission is required.</span>
-          We couldn't get your GPS location. To clock in, please:
-          <p>Chrome (Android)</p>
-          <ol>
-            <li>Tap the lock icon in the address bar</li>
-            <li>Tap "Permissions"</li>
-            <li>Set Location to "Allow"</li>
-            <li>Reload the page</li>
-          </ol>
-          <p>Safari (iPhone)</p>
-          <ol>
-            <li>Tap "aA" in the address bar</li>
-            <li>Tap "Website Settings"</li>
-            <li>Set Location to "Allow"</li>
-            <li>Reload the page</li>
-          </ol>
-          <button type="button" class="msg-retry" id="retryLocBtn">Reload and try again</button>
-        </div>`;
+      html = `<div class="msg msg-error">
+        <span class="msg-title">⚠ Location permission is required.</span>
+        We couldn't get your GPS location. To clock in, please:
+        <p>Chrome (Android)</p>
+        <ol><li>Tap the lock icon in the address bar</li><li>Tap "Permissions"</li><li>Set Location to "Allow"</li><li>Reload the page</li></ol>
+        <p>Safari (iPhone)</p>
+        <ol><li>Tap "aA" in the address bar</li><li>Tap "Website Settings"</li><li>Set Location to "Allow"</li><li>Reload the page</li></ol>
+        <button type="button" class="msg-retry" id="retryLocBtn">Reload and try again</button></div>`;
     } else if (kind === 'inaccurate') {
-      html = `
-        <div class="msg msg-error">
-          <span class="msg-title">📍 Location not accurate enough yet.</span>
-          Current accuracy: ${accuracy} m (need ≤ ${CONFIG.ACCURACY_MAX_M} m)
-          <ul>
-            <li>Move near a window or step outside</li>
-            <li>Wait 5–10 seconds for the GPS to lock</li>
-            <li>Keep the phone still</li>
-          </ul>
-          <button type="button" class="msg-retry" id="retryLocBtn">Retry</button>
-        </div>`;
+      html = `<div class="msg msg-error">
+        <span class="msg-title">📍 Location not accurate enough yet.</span>
+        Current accuracy: ${accuracy} m (need ≤ ${CONFIG.ACCURACY_MAX_M} m)
+        <ul><li>Move near a window or step outside</li><li>Wait 5–10 seconds for the GPS to lock</li><li>Keep the phone still</li></ul>
+        <button type="button" class="msg-retry" id="retryLocBtn">Retry</button></div>`;
     } else if (kind === 'timeout') {
-      html = `
-        <div class="msg msg-error">
-          <span class="msg-title">📍 Still locating you…</span>
-          This can take up to 15 seconds outdoors. Please keep the page open.
-          <button type="button" class="msg-retry" id="retryLocBtn">Retry manually</button>
-        </div>`;
+      html = `<div class="msg msg-error">
+        <span class="msg-title">📍 Still locating you…</span>
+        This can take up to 15 seconds outdoors. Please keep the page open.
+        <button type="button" class="msg-retry" id="retryLocBtn">Retry manually</button></div>`;
     } else {
-      html = `
-        <div class="msg msg-error">
-          <span class="msg-title">Location unavailable.</span>
-          Please reload and try again.
-          <button type="button" class="msg-retry" id="retryLocBtn">Retry</button>
-        </div>`;
+      html = `<div class="msg msg-error">
+        <span class="msg-title">Location unavailable.</span>
+        Please reload and try again.
+        <button type="button" class="msg-retry" id="retryLocBtn">Retry</button></div>`;
     }
     msgArea.innerHTML = html;
-
     const btn = $('retryLocBtn');
     if (btn) btn.addEventListener('click', () => {
       if (kind === 'permission') location.reload();
@@ -1388,11 +890,7 @@
     });
   }
 
-  // ═══════════════════════════════════════════════════════════════════
-  // Client-side lockout
-  // ═══════════════════════════════════════════════════════════════════
   const lockKey = name => 'goolee_lockout_' + name;
-
   function getLock(name) {
     try {
       const raw = localStorage.getItem(lockKey(name));
@@ -1414,9 +912,6 @@
   }
   function clearLock(name) { setLock(name, { tries: 0, until: 0 }); }
 
-  // ═══════════════════════════════════════════════════════════════════
-  // Buttons
-  // ═══════════════════════════════════════════════════════════════════
   function updateButtons() {
     const ready = gpsLocked && !!currentPosition;
     clockInBtn.disabled  = !ready;
@@ -1425,20 +920,14 @@
 
   clockInBtn.addEventListener('click',  () => submitPunch('Clock In'));
   clockOutBtn.addEventListener('click', () => submitPunch('Clock Out'));
-
   pinInput.addEventListener('input', () => {
     pinInput.value = pinInput.value.replace(/[^0-9]/g, '').slice(0, 4);
   });
 
-  // ═══════════════════════════════════════════════════════════════════
-  // Submit
-  // ═══════════════════════════════════════════════════════════════════
   async function submitPunch(action) {
     msgArea.innerHTML = '';
-
     const name = employeeSelect.value;
     const pin  = pinInput.value;
-
     if (!name) { showFormError('Select your name first.'); return; }
     if (isLocked(name)) {
       const s = getLock(name);
@@ -1451,10 +940,8 @@
       showFormError('Waiting on a valid location — buttons unlock once GPS is ready.');
       return;
     }
-
     clockInBtn.disabled = true;
     clockOutBtn.disabled = true;
-
     try {
       const pinHash = await hashPin(pin);
       const res = await jsonp({
@@ -1466,10 +953,21 @@
         lng: String(currentPosition.lng),
         accuracy: String(currentPosition.accuracy)
       });
-
       if (!res.ok) {
         if (res.reason === 'bad_pin') recordFail(name);
-        showFormError(res.message || 'Punch could not be recorded.');
+
+        // All blocked punches → red error
+        if (res.reason === 'already_clocked_in') {
+          const t = res.existingTime || 'earlier today';
+          showFormError('You have already clocked in today at ' + t + '. Only one clock-in per day is allowed.');
+        } else if (res.reason === 'already_clocked_out') {
+          const t = res.existingTime || 'earlier today';
+          showFormError('You have already clocked out today at ' + t + '. Only one clock-out per day is allowed.');
+        } else if (res.reason === 'no_clock_in') {
+          showFormError("You haven't clocked in today yet. Please Clock In first before Clock Out.");
+        } else {
+          showFormError(res.message || 'Punch could not be recorded.');
+        }
       } else {
         clearLock(name);
         pinInput.value = '';
@@ -1483,9 +981,6 @@
     }
   }
 
-  // ═══════════════════════════════════════════════════════════════════
-  // Messages
-  // ═══════════════════════════════════════════════════════════════════
   function showFormError(text) {
     pinInput.value = '';
     msgArea.innerHTML =
@@ -1507,21 +1002,11 @@
     $('okClose').focus();
   }
 
-  function showFormSuccess(text) {
-    msgArea.innerHTML = `<div class="msg msg-success">${text}</div>`;
-  }
-
-  // ═══════════════════════════════════════════════════════════════════
-  // Overlay
-  // ═══════════════════════════════════════════════════════════════════
   $('okClose').addEventListener('click', () => { overlay.hidden = true; });
   overlay.addEventListener('click', e => {
     if (e.target === overlay) overlay.hidden = true;
   });
 
-  // ═══════════════════════════════════════════════════════════════════
-  // Boot — parallel
-  // ═══════════════════════════════════════════════════════════════════
   window.addEventListener('error', e => console.error('Error:', e.error || e.message));
   window.addEventListener('unhandledrejection', e => console.error('Rejection:', e.reason));
 

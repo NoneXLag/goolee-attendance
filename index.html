@@ -6,6 +6,7 @@
 <meta name="theme-color" content="#0F4038">
 <title>Goolee.my — Attendance Clock</title>
 <meta name="description" content="Clock in and out with GPS-verified location.">
+<link rel="icon" type="image/png" href="logo.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600;9..144,700&family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
@@ -22,9 +23,6 @@
     --line:#E5EBE9; --line-strong:#D2DAD7;
     --surface:#FFFFFF; --surface-alt:#F6F9F8;
     --radius-sm:10px; --radius:14px; --radius-lg:22px; --radius-xl:28px;
-    --shadow-sm:0 1px 3px rgba(15,64,56,.06), 0 1px 2px rgba(15,64,56,.04);
-    --shadow-md:0 6px 24px rgba(15,64,56,.08), 0 2px 6px rgba(15,64,56,.05);
-    --shadow-lg:0 24px 60px rgba(15,64,56,.12), 0 8px 20px rgba(15,64,56,.06);
     --ease:cubic-bezier(.4, 0, .2, 1);
   }
   *, *::before, *::after{ box-sizing:border-box; }
@@ -37,11 +35,14 @@
     -webkit-font-smoothing:antialiased; -moz-osx-font-smoothing:grayscale;
     overflow-x:hidden;
   }
+
   .shell{
     display:grid;
     grid-template-columns:minmax(380px, 42%) 1fr;
     min-height:100svh;
   }
+
+  /* ═══════════════ LEFT: MANUAL PANEL (desktop) ═══════════════ */
   .brand-panel{
     position:relative;
     padding:56px 56px 48px;
@@ -50,8 +51,8 @@
       radial-gradient(circle at 85% 90%, rgba(30,133,116,.35) 0%, transparent 45%),
       linear-gradient(160deg, var(--teal-900) 0%, var(--teal-800) 60%, var(--teal-700) 100%);
     color:#fff;
-    display:flex; flex-direction:column; justify-content:space-between;
-    overflow:hidden;
+    display:flex; flex-direction:column;
+    overflow-y:auto;
   }
   .brand-panel::before{
     content:""; position:absolute; inset:0;
@@ -70,38 +71,44 @@
     pointer-events:none;
   }
   .brand-panel > *{ position:relative; z-index:1; }
-  .brand-logo-row{ display:flex; align-items:center; gap:14px; }
-  .logo-mark{
-    width:52px; height:52px; border-radius:14px;
-    background:linear-gradient(135deg, #fff 0%, #DCEFEA 100%);
-    color:var(--teal-800);
-    display:flex; align-items:center; justify-content:center;
-    font-family:'Fraunces', serif; font-weight:700; font-size:26px;
+
+  /* ─── Brand row: bigger logo, no white box ─── */
+  .brand-logo-row{
+    display:flex;
+    align-items:center;
+    gap:16px;
+    margin-bottom:36px;
+  }
+  .logo-image{
+    height:72px;
+    width:auto;
+    max-width:220px;
+    object-fit:contain;
     flex-shrink:0;
-    box-shadow:0 12px 28px rgba(0,0,0,.25), inset 0 1px 0 rgba(255,255,255,.6);
-    letter-spacing:-.02em;
+    display:block;
+    filter:drop-shadow(0 8px 20px rgba(0,0,0,.25));
   }
   .logo-text{ display:flex; flex-direction:column; gap:2px; }
   .logo-text .wordmark{
     font-family:'Fraunces', serif; font-weight:600;
-    font-size:21px; line-height:1.1; letter-spacing:-.01em;
+    font-size:21px; line-height:1.1;
   }
   .logo-text .tagline{
     font-size:11px; font-weight:600; letter-spacing:.18em;
     text-transform:uppercase; color:rgba(255,255,255,.55);
   }
-  .hero{ margin:auto 0; padding:48px 0 32px; max-width:520px; }
-  .eyebrow{
+
+  .panel-header{ margin-bottom:28px; }
+  .panel-eyebrow{
     display:inline-flex; align-items:center; gap:8px;
-    padding:7px 12px; border-radius:999px;
+    padding:6px 12px; border-radius:999px;
     background:rgba(255,255,255,.08);
     border:1px solid rgba(255,255,255,.14);
-    font-size:11px; font-weight:700; letter-spacing:.12em;
+    font-size:10.5px; font-weight:700; letter-spacing:.12em;
     text-transform:uppercase; color:rgba(255,255,255,.85);
-    margin-bottom:24px;
-    backdrop-filter:blur(8px); -webkit-backdrop-filter:blur(8px);
+    margin-bottom:16px;
   }
-  .eyebrow .dot{
+  .panel-eyebrow .dot{
     width:6px; height:6px; border-radius:50%;
     background:var(--teal-400);
     box-shadow:0 0 0 3px rgba(62,168,147,.25);
@@ -111,41 +118,101 @@
     0%, 100%{ opacity:1; transform:scale(1); }
     50%{ opacity:.6; transform:scale(1.15); }
   }
-  .hero h1{
+  .panel-header h2{
     font-family:'Fraunces', serif; font-weight:500;
-    font-size:clamp(38px, 4.4vw, 56px);
-    line-height:1.05; letter-spacing:-.025em;
-    margin:0 0 20px; color:#fff;
+    font-size:clamp(26px, 2.4vw, 32px);
+    line-height:1.15; letter-spacing:-.02em;
+    margin:0 0 8px; color:#fff;
   }
-  .hero h1 em{ font-style:italic; font-weight:600; color:var(--teal-400); }
-  .hero p{
-    font-size:16px; line-height:1.6;
-    color:rgba(255,255,255,.72); margin:0; max-width:440px;
+  .panel-header h2 em{
+    font-style:italic; font-weight:600; color:var(--teal-400);
   }
-  .features{ display:grid; gap:14px; margin-top:40px; }
-  .feature{
+  .panel-header p{
+    font-size:14px; line-height:1.6;
+    color:rgba(255,255,255,.7); margin:0;
+  }
+
+  .manual-steps{ display:flex; flex-direction:column; gap:12px; }
+  .step{
     display:flex; align-items:flex-start; gap:14px;
     padding:14px 16px;
     background:rgba(255,255,255,.05);
     border:1px solid rgba(255,255,255,.09);
     border-radius:var(--radius);
-    backdrop-filter:blur(10px); -webkit-backdrop-filter:blur(10px);
   }
-  .feature-icon{
-    width:34px; height:34px; border-radius:9px;
-    background:rgba(62,168,147,.18); color:var(--teal-400);
+  .step-num{
+    flex-shrink:0;
+    width:28px; height:28px; border-radius:50%;
+    background:var(--teal-400);
+    color:var(--teal-900);
     display:flex; align-items:center; justify-content:center;
+    font-weight:800; font-size:14px;
+    margin-top:1px;
+  }
+  .step-text{ display:flex; flex-direction:column; gap:3px; min-width:0; }
+  .step-title{
+    font-size:13.5px; font-weight:700; color:#fff;
+    letter-spacing:-.005em;
+  }
+  .step-sub{
+    font-size:12.5px; line-height:1.5; color:rgba(255,255,255,.62);
+  }
+
+  .info-block{
+    margin-top:20px;
+    padding:14px 16px;
+    background:rgba(62,168,147,.12);
+    border:1px solid rgba(62,168,147,.28);
+    border-radius:var(--radius);
+  }
+  .info-block-title{
+    display:flex; align-items:center; gap:8px;
+    font-size:11px; font-weight:800;
+    letter-spacing:.1em; text-transform:uppercase;
+    color:var(--teal-400); margin-bottom:8px;
+  }
+  .info-block-title svg{ width:14px; height:14px; }
+  .info-block ul{
+    list-style:none; padding:0; margin:0;
+    font-size:12.5px; line-height:1.7;
+    color:rgba(255,255,255,.78);
+  }
+  .info-block ul li{
+    display:flex; gap:8px; padding:2px 0;
+  }
+  .info-block ul li::before{
+    content:"•"; color:var(--teal-400); font-weight:800;
     flex-shrink:0;
   }
-  .feature-icon svg{ width:18px; height:18px; }
-  .feature-text{ display:flex; flex-direction:column; gap:2px; min-width:0; }
-  .feature-title{
-    font-size:13.5px; font-weight:700; color:#fff; letter-spacing:-.005em;
+
+  .issues{
+    margin-top:20px;
+    padding:14px 16px;
+    background:rgba(0,0,0,.15);
+    border:1px solid rgba(255,255,255,.08);
+    border-radius:var(--radius);
   }
-  .feature-sub{ font-size:12.5px; line-height:1.5; color:rgba(255,255,255,.6); }
+  .issues-title{
+    display:flex; align-items:center; gap:8px;
+    font-size:11px; font-weight:800;
+    letter-spacing:.1em; text-transform:uppercase;
+    color:rgba(255,255,255,.6); margin-bottom:10px;
+  }
+  .issues-title svg{ width:14px; height:14px; }
+  .issues table{ width:100%; border-collapse:collapse; font-size:12px; line-height:1.5; }
+  .issues td{ padding:6px 0; vertical-align:top; color:rgba(255,255,255,.75); }
+  .issues td:first-child{
+    color:rgba(255,255,255,.95);
+    font-weight:600;
+    padding-right:12px;
+    white-space:nowrap;
+  }
+
   .brand-footer{
+    margin-top:auto;
+    padding-top:32px;
     display:flex; align-items:center; justify-content:space-between;
-    gap:20px; padding-top:24px;
+    gap:20px;
     border-top:1px solid rgba(255,255,255,.08);
     font-size:12px; color:rgba(255,255,255,.5);
   }
@@ -154,6 +221,8 @@
     font-variant-numeric:tabular-nums;
     color:rgba(255,255,255,.75); font-size:13px;
   }
+
+  /* ═══════════════ RIGHT: FORM PANEL ═══════════════ */
   .form-panel{
     padding:56px clamp(32px, 6vw, 88px);
     display:flex; align-items:center; justify-content:center;
@@ -275,15 +344,9 @@
     background:linear-gradient(180deg, var(--green-500) 0%, var(--green-600) 100%);
     box-shadow:0 1px 0 rgba(255,255,255,.2) inset, 0 6px 16px rgba(31,157,100,.3);
   }
-  .btn-in:not(:disabled):hover{
-    box-shadow:0 1px 0 rgba(255,255,255,.2) inset, 0 8px 20px rgba(31,157,100,.4);
-  }
   .btn-out{
     background:linear-gradient(180deg, var(--red-500) 0%, var(--red-600) 100%);
     box-shadow:0 1px 0 rgba(255,255,255,.2) inset, 0 6px 16px rgba(193,57,43,.3);
-  }
-  .btn-out:not(:disabled):hover{
-    box-shadow:0 1px 0 rgba(255,255,255,.2) inset, 0 8px 20px rgba(193,57,43,.4);
   }
   .msg-area{ margin-top:20px; }
   .msg{
@@ -346,44 +409,194 @@
   }
   .secure-badge svg{ width:13px; height:13px; color:var(--teal-600); }
 
+  /* ═══════════════ MOBILE HEADER (only logo) ═══════════════ */
+  .mobile-header{
+    display:none;
+    background:linear-gradient(135deg, var(--teal-900) 0%, var(--teal-700) 100%);
+    color:#fff;
+    padding:14px 18px;
+    border-radius:0 0 20px 20px;
+    margin-bottom:20px;
+    position:relative;
+    overflow:hidden;
+  }
+  .mobile-header::before{
+    content:"";
+    position:absolute; inset:0;
+    background-image:
+      linear-gradient(rgba(255,255,255,.04) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(255,255,255,.04) 1px, transparent 1px);
+    background-size:32px 32px;
+    pointer-events:none;
+  }
+  .mobile-header > *{ position:relative; z-index:1; }
+  .mobile-header-row{
+    display:flex; align-items:center; justify-content:space-between;
+    gap:12px;
+  }
+  .mobile-logo-image{
+    height:44px;
+    width:auto;
+    max-width:180px;
+    object-fit:contain;
+    display:block;
+    filter:drop-shadow(0 4px 12px rgba(0,0,0,.25));
+  }
+
+  .mobile-live{
+    display:inline-flex; align-items:center; gap:6px;
+    padding:6px 11px; border-radius:999px;
+    background:rgba(62,168,147,.18);
+    border:1px solid rgba(62,168,147,.3);
+    font-size:10.5px; font-weight:700; letter-spacing:.08em;
+    text-transform:uppercase; color:var(--teal-400);
+    flex-shrink:0;
+  }
+  .mobile-live .dot{
+    width:5px; height:5px; border-radius:50%;
+    background:var(--teal-400);
+    animation:pulseDot 2s ease-in-out infinite;
+  }
+  .mobile-live-time{
+    font-family:'Fraunces', serif; font-weight:600;
+    font-variant-numeric:tabular-nums; color:#fff;
+    font-size:11px; margin-left:2px;
+  }
+
+  /* ═══════════════ MOBILE MANUAL ACCORDION ═══════════════ */
+  .mobile-manual{
+    display:none;
+    margin-top:20px;
+    background:#fff;
+    border:1px solid var(--line);
+    border-radius:var(--radius);
+    overflow:hidden;
+  }
+  .mobile-manual summary{
+    display:flex; align-items:center; gap:10px;
+    padding:14px 16px;
+    font-size:14px; font-weight:700;
+    color:var(--teal-700);
+    cursor:pointer;
+    list-style:none;
+    user-select:none;
+    background:var(--teal-50);
+  }
+  .mobile-manual summary::-webkit-details-marker{ display:none; }
+  .mobile-manual summary svg{ width:16px; height:16px; color:var(--teal-600); }
+  .mobile-manual summary .chev{
+    margin-left:auto; color:var(--ink-400);
+    transition:transform .2s var(--ease);
+  }
+  .mobile-manual[open] summary .chev{ transform:rotate(90deg); }
+  .mobile-manual-body{
+    padding:16px;
+    border-top:1px solid var(--line);
+  }
+  .mobile-manual-body .manual-step{
+    display:flex; gap:12px; align-items:flex-start;
+    padding:10px 0;
+    border-bottom:1px solid var(--line);
+  }
+  .mobile-manual-body .manual-step:last-child{ border-bottom:none; }
+  .mobile-manual-body .num{
+    flex-shrink:0;
+    width:24px; height:24px; border-radius:50%;
+    background:var(--teal-600); color:#fff;
+    display:flex; align-items:center; justify-content:center;
+    font-weight:800; font-size:12px;
+    margin-top:2px;
+  }
+  .mobile-manual-body .txt{
+    font-size:13px; line-height:1.5; color:var(--ink-700);
+  }
+  .mobile-manual-body .txt strong{
+    display:block; color:var(--ink-900);
+    font-size:13.5px; margin-bottom:2px;
+  }
+  .mobile-hours{
+    margin-top:16px; padding:14px;
+    background:var(--teal-50);
+    border:1px solid var(--teal-100);
+    border-radius:var(--radius-sm);
+  }
+  .mobile-hours-title{
+    font-size:11px; font-weight:800;
+    letter-spacing:.08em; text-transform:uppercase;
+    color:var(--teal-700); margin-bottom:8px;
+  }
+  .mobile-hours ul{
+    list-style:none; padding:0; margin:0;
+    font-size:13px; line-height:1.7; color:var(--ink-700);
+  }
+  .mobile-hours ul li{
+    display:flex; justify-content:space-between; gap:12px;
+    padding:2px 0;
+  }
+  .mobile-hours ul li strong{ color:var(--ink-900); }
+  .mobile-issues{
+    margin-top:16px; padding:14px;
+    background:var(--surface-alt);
+    border:1px solid var(--line);
+    border-radius:var(--radius-sm);
+  }
+  .mobile-issues-title{
+    font-size:11px; font-weight:800;
+    letter-spacing:.08em; text-transform:uppercase;
+    color:var(--ink-500); margin-bottom:8px;
+  }
+  .mobile-issue{
+    padding:8px 0;
+    border-bottom:1px solid var(--line);
+    font-size:12.5px; line-height:1.5;
+  }
+  .mobile-issue:last-child{ border-bottom:none; }
+  .mobile-issue strong{
+    display:block; color:var(--ink-900);
+    font-size:13px; margin-bottom:2px;
+  }
+  .mobile-issue span{ color:var(--ink-500); }
+
+  /* ═══════════════ MOBILE LAYOUT ═══════════════ */
   @media (max-width: 960px){
-    .shell{ grid-template-columns:1fr; min-height:100svh; }
-    .brand-panel{
-      padding:32px 24px 40px; min-height:auto;
-      border-radius:0 0 28px 28px;
-    }
-    .brand-panel::after{ display:none; }
-    .hero{ padding:32px 0 16px; max-width:none; }
-    .hero h1{ font-size:clamp(32px, 7vw, 40px); margin-bottom:14px; }
-    .hero p{ font-size:14.5px; max-width:none; }
-    .eyebrow{ font-size:10.5px; padding:6px 10px; margin-bottom:18px; }
-    .features{ grid-template-columns:1fr; gap:10px; margin-top:26px; }
-    .feature{ padding:12px 14px; }
-    .feature-sub{ display:none; }
-    .brand-footer{ padding-top:20px; font-size:11.5px; }
+    .shell{ display:block; min-height:auto; }
+    .brand-panel{ display:none; }
+    .mobile-header{ display:block; }
     .form-panel{
-      padding:32px 24px 48px;
-      background:var(--surface); align-items:flex-start;
+      padding:0 16px 32px;
+      background:var(--surface-alt);
+      min-height:auto;
+      display:block;
     }
-    .form-header{ margin-bottom:24px; }
-    .form-header h2{ font-size:24px; }
+    .form-wrap{ max-width:100%; }
+    .form-header{ margin-bottom:20px; }
+    .form-header .greeting{ font-size:12px; }
+    .form-header h2{ font-size:24px; margin-bottom:6px; }
+    .form-header p{ font-size:14px; }
+    .work-hours-badge{ font-size:12px; padding:6px 11px; }
+    .location-status{ margin-bottom:18px; padding:12px 14px; font-size:13px; }
+    .field{ margin-bottom:16px; }
+    .field input, .field select{ height:54px; font-size:16px; }
+    .actions{ grid-template-columns:1fr; gap:10px; margin-top:20px; }
+    .btn-punch{ height:58px; font-size:16px; }
+    .mobile-manual{ display:block; }
+    .privacy{ margin-top:24px; padding-top:16px; }
+    .form-footer{
+      flex-direction:column; align-items:flex-start; gap:8px;
+      margin-top:20px;
+    }
   }
+
   @media (max-width: 480px){
-    .brand-panel{ padding:26px 20px 32px; }
-    .logo-mark{ width:44px; height:44px; font-size:22px; }
-    .logo-text .wordmark{ font-size:19px; }
-    .hero h1{ font-size:30px; }
-    .form-panel{ padding:26px 20px 40px; }
+    .mobile-header{ padding:12px 16px; border-radius:0 0 18px 18px; }
+    .mobile-logo-image{ height:38px; max-width:150px; }
     .form-header h2{ font-size:22px; }
-    .actions{ grid-template-columns:1fr; gap:10px; }
-    .btn-punch{ height:56px; }
-    .field input, .field select{ height:52px; font-size:15px; }
-    .field input.pin{ font-size:20px; letter-spacing:.4em; padding-left:calc(18px + .4em); }
+    .field input.pin{
+      font-size:20px; letter-spacing:.4em;
+      padding-left:calc(18px + .4em);
+    }
   }
-  @media (min-width: 1400px){
-    .brand-panel{ padding:72px 72px 56px; }
-    .hero h1{ font-size:60px; }
-  }
+
   @media (prefers-reduced-motion: reduce){
     *, *::before, *::after{
       animation-duration:.01ms !important;
@@ -391,7 +604,7 @@
     }
   }
 
-  /* Overlay */
+  /* ═══════════════ OVERLAY ═══════════════ */
   .overlay{
     position:fixed; inset:0;
     background:rgba(10,46,40,.55);
@@ -480,67 +693,128 @@
 <body>
 
 <div class="shell">
-  <aside class="brand-panel" aria-hidden="true">
+
+  <!-- ═══════════════ LEFT: MANUAL PANEL (desktop) ═══════════════ -->
+  <aside class="brand-panel">
+
     <div class="brand-logo-row">
-      <div class="logo-mark">G</div>
+      <img class="logo-image" src="logo.png" alt="Goolee.my logo">
       <div class="logo-text">
         <span class="wordmark">Goolee.my</span>
         <span class="tagline">Attendance</span>
       </div>
     </div>
 
-    <div class="hero">
-      <span class="eyebrow"><span class="dot"></span>GPS Verified · Live</span>
-      <h1>Clock in, <em>verified</em> by where you are.</h1>
-      <p>Tap in and out from any device. Every punch is stamped with your name, PIN, GPS location, and time — so attendance is accurate and effortless.</p>
+    <div class="panel-header">
+      <span class="panel-eyebrow">
+        <span class="dot"></span>
+        How to use
+      </span>
+      <h2>Clock in and out in <em>6 steps</em>.</h2>
+      <p>Follow the steps on the right. Everything is saved automatically.</p>
+    </div>
 
-      <div class="features">
-        <div class="feature">
-          <span class="feature-icon">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-              <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/>
-              <circle cx="12" cy="10" r="3"/>
-            </svg>
-          </span>
-          <div class="feature-text">
-            <span class="feature-title">Real GPS location</span>
-            <span class="feature-sub">Every punch is tied to a live coordinate</span>
-          </div>
-        </div>
-        <div class="feature">
-          <span class="feature-icon">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-              <rect x="3" y="11" width="18" height="11" rx="2"/>
-              <path d="M7 11V7a5 5 0 0 1 10 0v4"/>
-            </svg>
-          </span>
-          <div class="feature-text">
-            <span class="feature-title">PIN-protected</span>
-            <span class="feature-sub">Only you can clock in as you</span>
-          </div>
-        </div>
-        <div class="feature">
-          <span class="feature-icon">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-              <circle cx="12" cy="12" r="10"/>
-              <path d="M12 6v6l4 2"/>
-            </svg>
-          </span>
-          <div class="feature-text">
-            <span class="feature-title">Live dashboard</span>
-            <span class="feature-sub">HR sees everything in real time</span>
-          </div>
+    <div class="manual-steps">
+      <div class="step">
+        <div class="step-num">1</div>
+        <div class="step-text">
+          <div class="step-title">Wait for the green location bar</div>
+          <div class="step-sub">It says "Location ready" once your GPS is locked. This usually takes 3–5 seconds.</div>
         </div>
       </div>
+      <div class="step">
+        <div class="step-num">2</div>
+        <div class="step-text">
+          <div class="step-title">Select your name</div>
+          <div class="step-sub">Pick your name from the dropdown list.</div>
+        </div>
+      </div>
+      <div class="step">
+        <div class="step-num">3</div>
+        <div class="step-text">
+          <div class="step-title">Enter your 4-digit PIN</div>
+          <div class="step-sub">The PIN that HR gave you. Keep it private.</div>
+        </div>
+      </div>
+      <div class="step">
+        <div class="step-num">4</div>
+        <div class="step-text">
+          <div class="step-title">Tap Clock In or Clock Out</div>
+          <div class="step-sub">Green = start of day. Red = end of day.</div>
+        </div>
+      </div>
+      <div class="step">
+        <div class="step-num">5</div>
+        <div class="step-text">
+          <div class="step-title">Confirm the green checkmark</div>
+          <div class="step-sub">You'll see your name, date, time, and location accuracy.</div>
+        </div>
+      </div>
+      <div class="step">
+        <div class="step-num">6</div>
+        <div class="step-text">
+          <div class="step-title">Done — close the page</div>
+          <div class="step-sub">HR sees your punch in real time.</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="info-block">
+      <div class="info-block-title">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="12" cy="12" r="10"/>
+          <path d="M12 6v6l4 2"/>
+        </svg>
+        Working hours
+      </div>
+      <ul>
+        <li>Start: <strong style="margin-left:4px;">10:00 AM</strong></li>
+        <li>End: <strong style="margin-left:4px;">7:00 PM</strong></li>
+        <li>Late after: <strong style="margin-left:4px;">10:15 AM</strong></li>
+        <li>Early leave before: <strong style="margin-left:4px;">6:45 PM</strong></li>
+      </ul>
+    </div>
+
+    <div class="issues">
+      <div class="issues-title">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="12" cy="12" r="10"/>
+          <line x1="12" y1="8" x2="12" y2="12"/>
+          <line x1="12" y1="16" x2="12.01" y2="16"/>
+        </svg>
+        Common issues
+      </div>
+      <table>
+        <tr><td>📍 Location blocked</td><td>Tap 🔒 in browser → set Location to "Allow" → reload.</td></tr>
+        <tr><td>📍 Accuracy poor</td><td>Step outside or near a window. Wait 10 seconds. Tap Retry.</td></tr>
+        <tr><td>🔑 Wrong PIN</td><td>3 tries allowed. After 3 wrong, wait 5 minutes.</td></tr>
+        <tr><td>🔑 Forgot PIN</td><td>Ask HR to reset it.</td></tr>
+        <tr><td>⏰ Already clocked in</td><td>One clock-in per day. Tell HR to correct.</td></tr>
+      </table>
     </div>
 
     <footer class="brand-footer">
       <span class="time" id="liveClock">--:--</span>
       <span>© <span id="year"></span> Goolee Sdn Bhd</span>
     </footer>
+
   </aside>
 
+  <!-- ═══════════════ MAIN: FORM ═══════════════ -->
   <main class="form-panel" role="main">
+
+    <!-- Mobile-only nav bar — ONLY the logo image -->
+    <div class="mobile-header">
+      <div class="mobile-header-row">
+        <img class="mobile-logo-image" src="logo.png" alt="Goolee.my">
+        <span class="mobile-live">
+          <span class="dot"></span>
+          LIVE
+          <span class="mobile-live-time" id="mobileClock">--:--</span>
+        </span>
+      </div>
+    </div>
+
     <div class="form-wrap">
       <div class="form-header">
         <div class="greeting">Welcome</div>
@@ -612,6 +886,76 @@
 
       <div id="msgArea" class="msg-area" aria-live="polite"></div>
 
+      <details class="mobile-manual">
+        <summary>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/>
+            <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/>
+          </svg>
+          How to use
+          <svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round">
+            <polyline points="9 6 15 12 9 18"/>
+          </svg>
+        </summary>
+        <div class="mobile-manual-body">
+          <div class="manual-step">
+            <div class="num">1</div>
+            <div class="txt"><strong>Wait for the green location bar</strong>It says "Location ready" once your GPS is locked (3–5 seconds).</div>
+          </div>
+          <div class="manual-step">
+            <div class="num">2</div>
+            <div class="txt"><strong>Select your name</strong>Pick your name from the dropdown.</div>
+          </div>
+          <div class="manual-step">
+            <div class="num">3</div>
+            <div class="txt"><strong>Enter your 4-digit PIN</strong>The one HR gave you. Keep it private.</div>
+          </div>
+          <div class="manual-step">
+            <div class="num">4</div>
+            <div class="txt"><strong>Tap Clock In or Clock Out</strong>Green = start. Red = end.</div>
+          </div>
+          <div class="manual-step">
+            <div class="num">5</div>
+            <div class="txt"><strong>Confirm the green checkmark</strong>Your punch is saved. HR sees it in real time.</div>
+          </div>
+
+          <div class="mobile-hours">
+            <div class="mobile-hours-title">⏰ Working hours</div>
+            <ul>
+              <li><span>Start</span><strong>10:00 AM</strong></li>
+              <li><span>End</span><strong>7:00 PM</strong></li>
+              <li><span>Late after</span><strong>10:15 AM</strong></li>
+              <li><span>Early before</span><strong>6:45 PM</strong></li>
+            </ul>
+          </div>
+
+          <div class="mobile-issues">
+            <div class="mobile-issues-title">⚠ Common issues</div>
+            <div class="mobile-issue">
+              <strong>📍 Location blocked</strong>
+              <span>Tap the 🔒 icon in your browser → set Location to "Allow" → reload.</span>
+            </div>
+            <div class="mobile-issue">
+              <strong>📍 Accuracy too poor</strong>
+              <span>Step outside or near a window. Wait 10 seconds. Tap Retry.</span>
+            </div>
+            <div class="mobile-issue">
+              <strong>🔑 Wrong PIN</strong>
+              <span>3 tries allowed. After 3 wrong, wait 5 minutes.</span>
+            </div>
+            <div class="mobile-issue">
+              <strong>🔑 Forgot PIN</strong>
+              <span>Ask HR to reset it.</span>
+            </div>
+            <div class="mobile-issue">
+              <strong>⏰ Already clocked in</strong>
+              <span>One clock-in per day. Tell HR to correct.</span>
+            </div>
+          </div>
+
+        </div>
+      </details>
+
       <details class="privacy">
         <summary>
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
@@ -638,7 +982,7 @@
           </svg>
           Encrypted · PDPA compliant
         </span>
-        <span>v5.3</span>
+        <span>v5.7</span>
       </div>
     </div>
   </main>
@@ -694,20 +1038,20 @@
   let gpsAttempt = 0;
   let gpsLocked = false;
 
-  // ═══ Live clock ═══
-  function updateClock() {
-    const el = $('liveClock');
-    if (!el) return;
-    el.textContent = new Date().toLocaleTimeString('en-MY', {
+  function updateClocks() {
+    const t = new Date().toLocaleTimeString('en-MY', {
       hour: '2-digit', minute: '2-digit', hour12: true,
       timeZone: 'Asia/Kuala_Lumpur'
     });
+    const el1 = $('liveClock');
+    const el2 = $('mobileClock');
+    if (el1) el1.textContent = t;
+    if (el2) el2.textContent = t;
   }
-  updateClock();
-  setInterval(updateClock, 15000);
+  updateClocks();
+  setInterval(updateClocks, 15000);
   const y = $('year'); if (y) y.textContent = new Date().getFullYear();
 
-  // ═══ Utils ═══
   function escapeHtml(v) {
     return String(v).replace(/[&<>"']/g, ch => ({
       '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'
@@ -731,7 +1075,6 @@
       .join('');
   }
 
-  // ═══ JSONP ═══
   function jsonp(fields) {
     return new Promise((resolve, reject) => {
       const cb = 'goolee_cb_' + Date.now() + '_' + Math.random().toString(36).slice(2);
@@ -762,63 +1105,6 @@
     });
   }
 
-  // ═══ Settings — fetch once, cache 10 min ═══
-  const SETTINGS_CACHE_KEY = 'goolee_settings_v1';
-  const SETTINGS_CACHE_TTL = 10 * 60 * 1000;
-
-  async function loadSettings() {
-    let settings = null;
-    try {
-      const cached = sessionStorage.getItem(SETTINGS_CACHE_KEY);
-      if (cached) {
-        const parsed = JSON.parse(cached);
-        if (Date.now() - parsed.ts < SETTINGS_CACHE_TTL) {
-          settings = parsed.settings;
-        }
-      }
-    } catch (e) {}
-
-    if (!settings) {
-      try {
-        const data = await jsonp({ action: 'settings' });
-        settings = data.settings || null;
-        if (settings) {
-          try {
-            sessionStorage.setItem(SETTINGS_CACHE_KEY, JSON.stringify({
-              settings, ts: Date.now()
-            }));
-          } catch (e) {}
-        }
-      } catch (e) {
-        console.error('loadSettings failed:', e);
-      }
-    }
-
-    // Fallback defaults if the call failed
-    settings = settings || {
-      workStartHour: 10, workStartMin: 0,
-      workEndHour: 19, workEndMin: 0,
-      lateAfterMin: 15, earlyLeaveMin: 15,
-      companyName: 'Goolee'
-    };
-
-    applySettings(settings);
-  }
-
-  function applySettings(s) {
-    const startH = Number(s.workStartHour) || 10;
-    const startM = Number(s.workStartMin) || 0;
-    const endH   = Number(s.workEndHour) || 19;
-    const endM   = Number(s.workEndMin) || 0;
-
-    if (workHoursText) {
-      workHoursText.textContent =
-        'Working hours: ' + formatTime(startH, startM) + ' – ' + formatTime(endH, endM);
-    }
-    if (workHoursBadge) workHoursBadge.hidden = false;
-  }
-
-  // ═══ Employees — 5 min cache ═══
   const EMP_CACHE_KEY = 'goolee_employees_v2';
   const EMP_CACHE_TTL = 5 * 60 * 1000;
 
@@ -877,7 +1163,56 @@
     } catch (e) {}
   }
 
-  // ═══ GPS ═══
+  const SETTINGS_CACHE_KEY = 'goolee_settings_v1';
+  const SETTINGS_CACHE_TTL = 10 * 60 * 1000;
+
+  async function loadSettings() {
+    let settings = null;
+    try {
+      const cached = sessionStorage.getItem(SETTINGS_CACHE_KEY);
+      if (cached) {
+        const parsed = JSON.parse(cached);
+        if (Date.now() - parsed.ts < SETTINGS_CACHE_TTL) {
+          settings = parsed.settings;
+        }
+      }
+    } catch (e) {}
+
+    if (!settings) {
+      try {
+        const data = await jsonp({ action: 'settings' });
+        settings = data.settings || null;
+        if (settings) {
+          try {
+            sessionStorage.setItem(SETTINGS_CACHE_KEY, JSON.stringify({
+              settings, ts: Date.now()
+            }));
+          } catch (e) {}
+        }
+      } catch (e) {}
+    }
+
+    settings = settings || {
+      workStartHour: 10, workStartMin: 0,
+      workEndHour: 19, workEndMin: 0,
+      companyName: 'Goolee'
+    };
+    applySettings(settings);
+  }
+
+  function applySettings(s) {
+    const startH = Number(s.workStartHour) || 10;
+    const startM = Number(s.workStartMin) || 0;
+    const endH   = Number(s.workEndHour) || 19;
+    const endM   = Number(s.workEndMin) || 0;
+
+    if (workHoursText) {
+      workHoursText.textContent =
+        'Working hours: ' + formatTime(startH, startM) + ' – ' + formatTime(endH, endM);
+    }
+    if (workHoursBadge) workHoursBadge.hidden = false;
+  }
+
   function setLocationState(state, text) {
     locationStatus.className = 'location-status is-' + state;
     locationText.textContent = text;
@@ -976,7 +1311,6 @@
     });
   }
 
-  // ═══ Lockout ═══
   const lockKey = name => 'goolee_lockout_' + name;
   function getLock(name) {
     try {
@@ -999,7 +1333,6 @@
   }
   function clearLock(name) { setLock(name, { tries: 0, until: 0 }); }
 
-  // ═══ Buttons ═══
   function updateButtons() {
     const ready = gpsLocked && !!currentPosition;
     clockInBtn.disabled  = !ready;
@@ -1012,7 +1345,6 @@
     pinInput.value = pinInput.value.replace(/[^0-9]/g, '').slice(0, 4);
   });
 
-  // ═══ Submit ═══
   async function submitPunch(action) {
     msgArea.innerHTML = '';
     const name = employeeSelect.value;
@@ -1082,26 +1414,22 @@
     }
   }
 
-  // ═══ Inline error ═══
   function showFormError(text) {
     pinInput.value = '';
     msgArea.innerHTML =
       `<div class="msg msg-error"><span class="msg-title">Couldn't complete that.</span>${escapeHtml(text)}</div>`;
   }
 
-  // ═══ Success popup (green, amber for early, green for overtime) ═══
   function showConfirmation(data) {
-    const status = data.punchStatus || 'normal';   // 'normal' | 'early' | 'overtime'
+    const status = data.punchStatus || 'normal';
     const isEarly = status === 'early';
     const isOvertime = status === 'overtime';
 
-    // Card style
     overlayCard.className = 'overlay-card' + (isEarly ? ' overlay--warn' : '');
     overlayIconSvg.innerHTML = isEarly
       ? '<circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/>'
       : '<polyline points="20 6 9 17 4 12"/>';
 
-    // Title
     let title;
     if (data.punchType === 'Clock In') {
       title = 'Clocked In!';
@@ -1118,7 +1446,6 @@
     const acc  = data.accuracy != null ? Math.round(data.accuracy) + ' m' : '—';
     const maps = data.mapsLink || '#';
 
-    // Rows
     let rows = `
       <div class="row"><span class="label">Action</span><span class="value">${escapeHtml(data.punchType || '—')}</span></div>
       <div class="row"><span class="label">Date</span><span class="value">${escapeHtml(data.date || '—')}</span></div>
@@ -1145,7 +1472,6 @@
     $('okClose').focus();
   }
 
-  // ═══ Blocked popup ═══
   function showBlockedPopup(reason, message, existingTime) {
     const isWarning = (
       reason === 'already_clocked_in' ||
@@ -1196,13 +1522,11 @@
     $('okClose').focus();
   }
 
-  // ═══ Overlay close ═══
   $('okClose').addEventListener('click', () => { overlay.hidden = true; });
   overlay.addEventListener('click', e => {
     if (e.target === overlay) overlay.hidden = true;
   });
 
-  // ═══ Boot — settings + employees + GPS in parallel ═══
   window.addEventListener('error', e => console.error('Error:', e.error || e.message));
   window.addEventListener('unhandledrejection', e => console.error('Rejection:', e.reason));
 

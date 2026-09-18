@@ -43,7 +43,10 @@ function doGet(e) {
     return respond_(p.callback, { ok: true, message: 'Goolee attendance API is live.' });
   }
   if (action === 'employees') {
-    return respond_(p.callback, { ok: true, employees: listEmployees_() });
+    return respond_(p.callback, {
+      ok: true,
+      employees: listEmployees_(p.refresh === '1')
+    });
   }
   if (action === 'settings') {
     return respond_(p.callback, { ok: true, settings: getSettings_() });
@@ -154,10 +157,12 @@ function sheet_(name) {
 // ═══════════════════════════════════════════════════════════════════════
 // Employees — cached
 // ═══════════════════════════════════════════════════════════════════════
-function listEmployees_() {
+function listEmployees_(forceRefresh) {
   const cache = CacheService.getScriptCache();
-  const cached = cache.get(CACHE_EMPLOYEES_KEY);
-  if (cached) { try { return JSON.parse(cached); } catch (e) {} }
+  if (!forceRefresh) {
+    const cached = cache.get(CACHE_EMPLOYEES_KEY);
+    if (cached) { try { return JSON.parse(cached); } catch (e) {} }
+  }
 
   const values = sheet_(EMPLOYEES_TAB).getDataRange().getValues();
   if (values.length < 2) return [];

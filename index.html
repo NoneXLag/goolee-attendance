@@ -1007,7 +1007,7 @@
   "use strict";
 
   const CONFIG = {
-    API_URL: "https://script.google.com/macros/s/AKfycbwayAHofc85MG4qt346ivOHzjToNLUNxyHn-QT4uwZMiAoIyZ8yuKsOCJEVpj9sEj6F/exec",
+    API_URL: "https://script.google.com/macros/s/AKfycbzkMOPy0IMjVaBbQcRBmHby5OIR28cUEonUO0nrvgFWfXcIU63pExq3CWkQIqV-6Dtb/exec",
     ACCURACY_MAX_M: 100,
     GPS_TIMEOUT_MS: 15000,
     GPS_RETRIES: 3,
@@ -1109,21 +1109,20 @@
   const EMP_CACHE_TTL = 5 * 60 * 1000;
 
   async function loadEmployees() {
+    let cachedEmployees = null;
     try {
       const cached = sessionStorage.getItem(EMP_CACHE_KEY);
       if (cached) {
         const parsed = JSON.parse(cached);
         if (Date.now() - parsed.ts < EMP_CACHE_TTL &&
             parsed.employees && parsed.employees.length) {
-          renderEmployees(parsed.employees);
-          refreshEmployeeCache().catch(() => {});
-          return;
+          cachedEmployees = parsed.employees;
         }
       }
     } catch (e) {}
 
     try {
-      const data = await jsonp({ action: 'employees' });
+      const data = await jsonp({ action: 'employees', refresh: '1', _: Date.now() });
       const employees = data.employees || [];
       renderEmployees(employees);
       try {
@@ -1133,8 +1132,12 @@
       } catch (e) {}
     } catch (err) {
       console.error('loadEmployees failed:', err);
-      employeeSelect.innerHTML =
-        '<option value="" disabled selected>Could not load names — reload the page</option>';
+      if (cachedEmployees) {
+        renderEmployees(cachedEmployees);
+      } else {
+        employeeSelect.innerHTML =
+          '<option value="" disabled selected>Could not load names — reload the page</option>';
+      }
     }
   }
 
@@ -1152,7 +1155,7 @@
 
   async function refreshEmployeeCache() {
     try {
-      const data = await jsonp({ action: 'employees' });
+      const data = await jsonp({ action: 'employees', refresh: '1', _: Date.now() });
       const employees = data.employees || [];
       try {
         sessionStorage.setItem(EMP_CACHE_KEY, JSON.stringify({

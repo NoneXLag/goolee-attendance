@@ -1106,24 +1106,16 @@
   }
 
   const EMP_CACHE_KEY = 'goolee_employees_v2';
-  const EMP_CACHE_TTL = 5 * 60 * 1000;
 
   async function loadEmployees() {
-    let cachedEmployees = null;
-    try {
-      const cached = sessionStorage.getItem(EMP_CACHE_KEY);
-      if (cached) {
-        const parsed = JSON.parse(cached);
-        if (Date.now() - parsed.ts < EMP_CACHE_TTL &&
-            parsed.employees && parsed.employees.length) {
-          cachedEmployees = parsed.employees;
-        }
-      }
-    } catch (e) {}
+    try { sessionStorage.removeItem(EMP_CACHE_KEY); } catch (e) {}
 
     try {
       const data = await jsonp({ action: 'employees', refresh: '1', _: Date.now() });
       const employees = data.employees || [];
+      if (!Array.isArray(employees) || employees.length === 0) {
+        throw new Error('Employee list was empty.');
+      }
       renderEmployees(employees);
       try {
         sessionStorage.setItem(EMP_CACHE_KEY, JSON.stringify({
@@ -1132,12 +1124,8 @@
       } catch (e) {}
     } catch (err) {
       console.error('loadEmployees failed:', err);
-      if (cachedEmployees) {
-        renderEmployees(cachedEmployees);
-      } else {
-        employeeSelect.innerHTML =
-          '<option value="" disabled selected>Could not load names — reload the page</option>';
-      }
+      employeeSelect.innerHTML =
+        '<option value="" disabled selected>Could not load names — reload the page</option>';
     }
   }
 
@@ -1157,6 +1145,7 @@
     try {
       const data = await jsonp({ action: 'employees', refresh: '1', _: Date.now() });
       const employees = data.employees || [];
+      if (!Array.isArray(employees) || employees.length === 0) return;
       try {
         sessionStorage.setItem(EMP_CACHE_KEY, JSON.stringify({
           employees, ts: Date.now()

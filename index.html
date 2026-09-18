@@ -982,7 +982,7 @@
           </svg>
           Encrypted · PDPA compliant
         </span>
-        <span>v5.7</span>
+        <span>v5.8</span>
       </div>
     </div>
   </main>
@@ -1038,6 +1038,42 @@
   let gpsAttempt = 0;
   let gpsLocked = false;
 
+  // ═════════════════════════════════════════════════════════════════════
+  //  IN-APP BROWSER DETECTION
+  //  In-app WebViews (WhatsApp, WeChat, FB, IG, TikTok, etc.) block the
+  //  script.google.com → googleusercontent.com redirect chain, so JSONP
+  //  and fetch both silently fail on Android. Detect and offer Chrome.
+  // ═════════════════════════════════════════════════════════════════════
+  function isInAppBrowser() {
+    const ua = navigator.userAgent || '';
+    return /FBAN|FBAV|FB_IAB|Instagram|Line\/|MicroMessenger|WhatsApp|Twitter|SnapChat|Pinterest|TikTok|BytedanceWebview|; wv\)/i.test(ua);
+  }
+
+  function showOpenInChromeBanner() {
+    if (!isInAppBrowser()) return false;
+    const here = location.href.replace(/^https?:\/\//, '');
+    const intentUrl = 'intent://' + here +
+      '#Intent;scheme=https;package=com.android.chrome;end';
+    msgArea.innerHTML =
+      '<div class="msg msg-error">' +
+      '<span class="msg-title">⚠ Open this page in Chrome</span>' +
+      'You are inside an in-app browser (WhatsApp, WeChat, Facebook, etc.). ' +
+      'It blocks the connection to the attendance server, so the name list ' +
+      'cannot load.' +
+      '<a href="' + intentUrl + '" style="display:inline-block;margin-top:12px;' +
+      'padding:10px 18px;background:#C1392B;color:#fff;border-radius:9px;' +
+      'font-weight:700;text-decoration:none;">Open in Chrome</a>' +
+      '<div style="margin-top:12px;font-size:12.5px;opacity:.85;line-height:1.55;">' +
+      'Or tap <strong>⋮</strong> (top-right) → <strong>Open in Chrome</strong>.' +
+      '</div></div>';
+    employeeSelect.innerHTML =
+      '<option value="" disabled selected>Open in Chrome to load names</option>';
+    return true;
+  }
+
+  // ═════════════════════════════════════════════════════════════════════
+  //  CLOCK
+  // ═════════════════════════════════════════════════════════════════════
   function updateClocks() {
     const t = new Date().toLocaleTimeString('en-MY', {
       hour: '2-digit', minute: '2-digit', hour12: true,
@@ -1052,6 +1088,9 @@
   setInterval(updateClocks, 15000);
   const y = $('year'); if (y) y.textContent = new Date().getFullYear();
 
+  // ═════════════════════════════════════════════════════════════════════
+  //  HELPERS
+  // ═════════════════════════════════════════════════════════════════════
   function escapeHtml(v) {
     return String(v).replace(/[&<>"']/g, ch => ({
       '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'
@@ -1075,12 +1114,58 @@
       .join('');
   }
 
+  // ═════════════════════════════════════════════════════════════════════
+  //  NETWORK — apiCall() = fetch first, JSONP fallback
+  // ═════════════════════════════════════════════════════════════════════
+  async function apiCall(fields) {
+    const url = CONFIG.API_URL + '?' + new URLSearchParams(fields).toString();
+
+    // ── Try fetch (fails loudly on CORS / login redirect) ──
+    try {
+      const controller = typeof AbortController !== 'undefined'
+        ? new AbortController() : null;
+      const timer = controller
+        ? setTimeout(() => controller.abort(), CONFIG.REQUEST_TIMEOUT_MS)
+        : null;
+
+      const res = await fetch(url, {
+        method: 'GET',
+        redirect: 'follow',
+        cache: 'no-store',
+        credentials: 'omit',
+        signal: controller ? controller.signal : undefined
+      });
+
+      if (timer) clearTimeout(timer);
+
+      if (!res.ok) throw new Error('Server returned HTTP ' + res.status);
+
+      const text = await res.text();
+      const first = text.charAt(0);
+      if (first !== '{' && first !== '[') {
+        throw new Error(
+          'Server did not return JSON. It may be a Google sign-in page — ' +
+          'the Web App must be deployed with "Who has access: Anyone".'
+        );
+      }
+      return JSON.parse(text);
+    } catch (e) {
+      console.warn('fetch failed, falling back to JSONP:', e.message);
+    }
+
+    // ── JSONP fallback (with onload guard so login pages are detected) ──
+    return jsonp(fields);
+  }
+
   function jsonp(fields) {
     return new Promise((resolve, reject) => {
       const cb = 'goolee_cb_' + Date.now() + '_' + Math.random().toString(36).slice(2);
       const params = new URLSearchParams(Object.assign({}, fields, { callback: cb }));
       const script = document.createElement('script');
+
       let done = false;
+      let called = false;
+
       const cleanup = () => {
         clearTimeout(timer);
         try { delete window[cb]; } catch (e) { window[cb] = undefined; }
@@ -1092,27 +1177,63 @@
         cleanup();
         fn(val);
       };
-      window[cb] = data => finish(resolve, data || { ok: false, message: 'Empty response.' });
+
+      window[cb] = data => {
+        called = true;
+        finish(resolve, data || { ok: false, message: 'Empty response.' });
+      };
+
       script.onerror = () => finish(reject, new Error(
-        'Could not reach the attendance server. Verify the Apps Script is deployed with "Who has access: Anyone".'
+        'Could not reach the attendance server. Your browser may be blocking it — ' +
+        'open this page in Chrome (not an in-app browser).'
       ));
+
+      // A classic <script> executes BEFORE the load event. If our callback
+      // never fired, the server sent HTML (a sign-in page or a blocker page),
+      // not JSONP — surface that instead of hanging silently.
+      script.onload = () => {
+        if (!called) {
+          finish(reject, new Error(
+            'The server did not return JSONP. A browser blocker or a Google ' +
+            'sign-in page intercepted the request. Try Chrome and make sure ' +
+            'the Web App is deployed with "Who has access: Anyone".'
+          ));
+        }
+      };
+
       const timer = setTimeout(
         () => finish(reject, new Error('Attendance server did not respond in time.')),
         CONFIG.REQUEST_TIMEOUT_MS
       );
+
       script.src = CONFIG.API_URL + '?' + params.toString();
       document.body.appendChild(script);
     });
   }
 
+  // ═════════════════════════════════════════════════════════════════════
+  //  EMPLOYEES
+  // ═════════════════════════════════════════════════════════════════════
   const EMP_CACHE_KEY = 'goolee_employees_v2';
+  let employeesLoading = null;
 
-  async function loadEmployees() {
+  function loadEmployees() {
+    if (employeesLoading) return employeesLoading;
+    employeesLoading = loadEmployeesOnce().finally(() => { employeesLoading = null; });
+    return employeesLoading;
+  }
+
+  async function loadEmployeesOnce() {
+    // If we're in an in-app browser, no point even trying — show the banner.
+    if (showOpenInChromeBanner()) return;
+
     try { sessionStorage.removeItem(EMP_CACHE_KEY); } catch (e) {}
+
+    let lastErr = null;
 
     for (let attempt = 1; attempt <= 2; attempt++) {
       try {
-        const data = await jsonp({ action: 'employees', refresh: '1', _: Date.now() });
+        const data = await apiCall({ action: 'employees', refresh: '1', _: Date.now() });
         const employees = data.employees || [];
         if (!Array.isArray(employees) || employees.length === 0) {
           throw new Error('Employee list was empty.');
@@ -1123,14 +1244,31 @@
             employees, ts: Date.now()
           }));
         } catch (e) {}
+        msgArea.innerHTML = '';
         return;
       } catch (err) {
+        lastErr = err;
         console.error('loadEmployees attempt ' + attempt + ' failed:', err);
-        if (attempt < 2) await new Promise(resolve => setTimeout(resolve, 800));
+        if (attempt < 2) await new Promise(r => setTimeout(r, 800));
       }
     }
+
+    // Both attempts failed — show a clear, actionable error.
     employeeSelect.innerHTML =
-      '<option value="" disabled selected>Could not load names — reload the page</option>';
+      '<option value="" disabled selected>Could not load names</option>';
+    msgArea.innerHTML =
+      '<div class="msg msg-error">' +
+      '<span class="msg-title">Could not load the name list.</span>' +
+      escapeHtml(lastErr && lastErr.message ? lastErr.message : 'Unknown error.') +
+      '<button type="button" class="msg-retry" id="retryEmpBtn">Reload names</button>' +
+      '</div>';
+    const b = $('retryEmpBtn');
+    if (b) b.addEventListener('click', () => {
+      msgArea.innerHTML = '';
+      employeeSelect.innerHTML =
+        '<option value="" disabled selected>Loading employees…</option>';
+      loadEmployees();
+    });
   }
 
   function renderEmployees(employees) {
@@ -1147,7 +1285,7 @@
 
   async function refreshEmployeeCache() {
     try {
-      const data = await jsonp({ action: 'employees', refresh: '1', _: Date.now() });
+      const data = await apiCall({ action: 'employees', refresh: '1', _: Date.now() });
       const employees = data.employees || [];
       if (!Array.isArray(employees) || employees.length === 0) return;
       try {
@@ -1159,6 +1297,9 @@
     } catch (e) {}
   }
 
+  // ═════════════════════════════════════════════════════════════════════
+  //  SETTINGS
+  // ═════════════════════════════════════════════════════════════════════
   const SETTINGS_CACHE_KEY = 'goolee_settings_v1';
   const SETTINGS_CACHE_TTL = 10 * 60 * 1000;
 
@@ -1176,7 +1317,7 @@
 
     if (!settings) {
       try {
-        const data = await jsonp({ action: 'settings' });
+        const data = await apiCall({ action: 'settings' });
         settings = data.settings || null;
         if (settings) {
           try {
@@ -1209,6 +1350,9 @@
     if (workHoursBadge) workHoursBadge.hidden = false;
   }
 
+  // ═════════════════════════════════════════════════════════════════════
+  //  GPS
+  // ═════════════════════════════════════════════════════════════════════
   function setLocationState(state, text) {
     locationStatus.className = 'location-status is-' + state;
     locationText.textContent = text;
@@ -1307,6 +1451,9 @@
     });
   }
 
+  // ═════════════════════════════════════════════════════════════════════
+  //  PIN LOCKOUT (client-side)
+  // ═════════════════════════════════════════════════════════════════════
   const lockKey = name => 'goolee_lockout_' + name;
   function getLock(name) {
     try {
@@ -1341,6 +1488,9 @@
     pinInput.value = pinInput.value.replace(/[^0-9]/g, '').slice(0, 4);
   });
 
+  // ═════════════════════════════════════════════════════════════════════
+  //  SUBMIT PUNCH
+  // ═════════════════════════════════════════════════════════════════════
   async function submitPunch(action) {
     msgArea.innerHTML = '';
     const name = employeeSelect.value;
@@ -1365,7 +1515,7 @@
 
     try {
       const pinHash = await hashPin(pin);
-      const res = await jsonp({
+      const res = await apiCall({
         action: 'punch',
         name,
         pinHash,
@@ -1416,6 +1566,9 @@
       `<div class="msg msg-error"><span class="msg-title">Couldn't complete that.</span>${escapeHtml(text)}</div>`;
   }
 
+  // ═════════════════════════════════════════════════════════════════════
+  //  CONFIRMATION OVERLAY
+  // ═════════════════════════════════════════════════════════════════════
   function showConfirmation(data) {
     const status = data.punchStatus || 'normal';
     const isEarly = status === 'early';
@@ -1523,14 +1676,27 @@
     if (e.target === overlay) overlay.hidden = true;
   });
 
+  // ═════════════════════════════════════════════════════════════════════
+  //  BOOT
+  // ═════════════════════════════════════════════════════════════════════
   window.addEventListener('error', e => console.error('Error:', e.error || e.message));
   window.addEventListener('unhandledrejection', e => console.error('Rejection:', e.reason));
 
+  // Throttle the re-load triggers — Android fires pageshow + visibilitychange
+  // + resume all at once, which used to fire 3 concurrent requests.
+  let lastEmpLoad = 0;
+  const reloadEmployees = () => {
+    const now = Date.now();
+    if (now - lastEmpLoad < 5000) return;
+    lastEmpLoad = now;
+    loadEmployees();
+  };
+
   loadSettings();
   loadEmployees();
-  window.addEventListener('pageshow', loadEmployees);
+  window.addEventListener('pageshow', reloadEmployees);
   document.addEventListener('visibilitychange', () => {
-    if (document.visibilityState === 'visible') loadEmployees();
+    if (document.visibilityState === 'visible') reloadEmployees();
   });
   requestLocation();
 

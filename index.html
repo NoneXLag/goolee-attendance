@@ -1084,7 +1084,7 @@
       const cleanup = () => {
         clearTimeout(timer);
         try { delete window[cb]; } catch (e) { window[cb] = undefined; }
-        script.remove();
+        if (script.parentNode) script.parentNode.removeChild(script);
       };
       const finish = (fn, val) => {
         if (done) return;
@@ -1110,23 +1110,27 @@
   async function loadEmployees() {
     try { sessionStorage.removeItem(EMP_CACHE_KEY); } catch (e) {}
 
-    try {
-      const data = await jsonp({ action: 'employees', refresh: '1', _: Date.now() });
-      const employees = data.employees || [];
-      if (!Array.isArray(employees) || employees.length === 0) {
-        throw new Error('Employee list was empty.');
-      }
-      renderEmployees(employees);
+    for (let attempt = 1; attempt <= 2; attempt++) {
       try {
-        sessionStorage.setItem(EMP_CACHE_KEY, JSON.stringify({
-          employees, ts: Date.now()
-        }));
-      } catch (e) {}
-    } catch (err) {
-      console.error('loadEmployees failed:', err);
-      employeeSelect.innerHTML =
-        '<option value="" disabled selected>Could not load names — reload the page</option>';
+        const data = await jsonp({ action: 'employees', refresh: '1', _: Date.now() });
+        const employees = data.employees || [];
+        if (!Array.isArray(employees) || employees.length === 0) {
+          throw new Error('Employee list was empty.');
+        }
+        renderEmployees(employees);
+        try {
+          sessionStorage.setItem(EMP_CACHE_KEY, JSON.stringify({
+            employees, ts: Date.now()
+          }));
+        } catch (e) {}
+        return;
+      } catch (err) {
+        console.error('loadEmployees attempt ' + attempt + ' failed:', err);
+        if (attempt < 2) await new Promise(resolve => setTimeout(resolve, 800));
+      }
     }
+    employeeSelect.innerHTML =
+      '<option value="" disabled selected>Could not load names — reload the page</option>';
   }
 
   function renderEmployees(employees) {

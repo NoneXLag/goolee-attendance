@@ -8,6 +8,10 @@
  * • Computes early-leave / overtime on clock-out
  * • Auto-refreshes the dashboard ~5s after every punch
  *
+ * Duplicate-punch detection now reads the REAL timestamp in column A
+ * (never the date string in column F, which Sheets can silently
+ * re-type as a Date and shift across timezones).
+ *
  * Constants use the API_ prefix where they could clash with Dashboard.gs
  * (Apps Script merges all .gs files into one global scope).
  */
@@ -251,14 +255,19 @@ function clearFailure_(name) {
 }
 
 // ═══════════════════════════════════════════════════════════════════════
-// Duplicate punch check
+// Duplicate punch check — reads the REAL timestamp in column A.
+// Do NOT trust column F (the date string). Sheets silently re-types it
+// as a Date and the value can drift across timezone boundaries, which
+// caused "already clocked in" to trigger on a fresh day.
 // ═══════════════════════════════════════════════════════════════════════
-function getTodayPunches_(employeeName, dateStr, tz) {
+function getTodayPunches_(employeeName, tz) {
   const sheet = sheet_(ATTENDANCE_TAB);
   const lastRow = sheet.getLastRow();
   if (lastRow < 2) return { hasIn: false, hasOut: false, inTime: null, outTime: null };
 
-  const lookback = Math.min(lastRow - 1, 500);
+  const todayStr = Utilities.formatDate(new Date(), tz, 'yyyy-MM-dd');
+
+  const lookback = Math.min(lastRow - 1, 1000);
   const startRow = lastRow - lookback + 1;
   const values = sheet.getRange(startRow, 1, lookback, 7).getValues();
 
@@ -266,26 +275,23 @@ function getTodayPunches_(employeeName, dateStr, tz) {
 
   for (let i = 0; i < values.length; i++) {
     const row = values[i];
-    const ts       = row[0];
-    const rowName  = String(row[1] || '').trim();
-    const action   = String(row[2] || '').trim();
-    const rowDate  = row[5];
-    if (rowName !== employeeName) continue;
+    const ts      = row[0];                       // column A — the real Date
+    const rowName = String(row[1] || '').trim();
+    const action  = String(row[2] || '').trim();
 
-    let rowDateStr;
-    if (rowDate instanceof Date) {
-      rowDateStr = Utilities.formatDate(rowDate, tz, 'yyyy-MM-dd');
-    } else {
-      rowDateStr = String(rowDate).trim().substring(0, 10);
-    }
-    if (rowDateStr !== dateStr) continue;
+    if (rowName !== employeeName) continue;
+    if (!(ts instanceof Date)) continue;          // skip malformed rows
+
+    // Format the row's own timestamp in the sheet TZ — never trust column F
+    const rowDateStr = Utilities.formatDate(ts, tz, 'yyyy-MM-dd');
+    if (rowDateStr !== todayStr) continue;
 
     if (action === 'Clock In') {
       hasIn = true;
-      if (!inTime && ts instanceof Date) inTime = Utilities.formatDate(ts, tz, 'h:mm a');
+      if (!inTime) inTime = Utilities.formatDate(ts, tz, 'h:mm a');
     } else if (action === 'Clock Out') {
       hasOut = true;
-      if (!outTime && ts instanceof Date) outTime = Utilities.formatDate(ts, tz, 'h:mm a');
+      if (!outTime) outTime = Utilities.formatDate(ts, tz, 'h:mm a');
     }
   }
   return { hasIn, hasOut, inTime, outTime };
@@ -333,7 +339,8 @@ function handlePunch_(body) {
   const dateStr = Utilities.formatDate(now, tz, 'yyyy-MM-dd');
   const timeStr = Utilities.formatDate(now, tz, 'HH:mm:ss');
 
-  const existing = getTodayPunches_(employee.name, dateStr, tz);
+  // ── Duplicate check now reads column A only (see getTodayPunches_) ──
+  const existing = getTodayPunches_(employee.name, tz);
 
   if (punchType === 'Clock In' && existing.hasIn) {
     return {
@@ -562,4 +569,110 @@ function sha256_(value) {
     const u = b < 0 ? b + 256 : b;
     return ('0' + u.toString(16)).slice(-2);
   }).join('');
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+// DIAGNOSTIC + REPAIR TOOLS
+// Run these manually from the Apps Script editor if you ever see
+// "already clocked in" on a day with no prior punch.
+// ═══════════════════════════════════════════════════════════════════════
+
+/**
+ * Diagnose the sheet timezone and the last few attendance rows.
+ * Apps Script editor → pick diagnoseAttendanceDates → Run.
+ */
+function diagnoseAttendanceDates() {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const sheet = ss.getSheetByName(ATTENDANCE_TAB);
+  const tz = ss.getSpreadsheetTimeZone();
+
+  const now = new Date();
+  const todayStr = Utilities.formatDate(now, tz, 'yyyy-MM-dd');
+  const scriptTz = Session.getScriptTimeZone();
+
+  const lastRow = sheet.getLastRow();
+  const alertFn = (typeof SpreadsheetApp.getUi === 'function')
+    ? function (title, msg) { SpreadsheetApp.getUi().alert(title, msg, SpreadsheetApp.getUi().ButtonSet.OK); }
+    : function (title, msg) { console.log(title + '\n' + msg); };
+
+  if (lastRow < 2) { alertFn('Attendance date diagnosis', 'Attendance sheet is empty.'); return; }
+
+  const lookback = Math.min(lastRow - 1, 10);
+  const startRow = lastRow - lookback + 1;
+  const values = sheet.getRange(startRow, 1, lookback, 7).getValues();
+
+  let msg = 'Sheet TZ: ' + tz + '\n' +
+            'Script TZ: ' + scriptTz + '\n' +
+            'Server "today": ' + todayStr + '\n\n' +
+            'Last ' + values.length + ' rows:\n\n';
+
+  values.forEach(function (row, i) {
+    const ts       = row[0];
+    const name     = String(row[1] || '').trim();
+    const action   = String(row[2] || '').trim();
+    const dateF    = row[5];
+    const typeF    = (dateF instanceof Date) ? 'Date' : typeof dateF;
+    const dateFmt  = (dateF instanceof Date)
+      ? Utilities.formatDate(dateF, tz, 'yyyy-MM-dd')
+      : String(dateF);
+    const tsFmt    = (ts instanceof Date)
+      ? Utilities.formatDate(ts, tz, 'yyyy-MM-dd HH:mm')
+      : String(ts);
+
+    msg += 'Row ' + (startRow + i) + ' · ' + name + ' · ' + action + '\n' +
+           '  A (timestamp): ' + tsFmt + '\n' +
+           '  F (date cell): ' + dateFmt + '  [' + typeF + ']\n\n';
+  });
+
+  alertFn('Attendance date diagnosis', msg);
+}
+
+/**
+ * One-off: rebuild column F from column A using the current sheet TZ,
+ * and lock column F to plain text so Sheets never re-types it again.
+ */
+function repairAttendanceDateColumn() {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const sheet = ss.getSheetByName(ATTENDANCE_TAB);
+  const tz = ss.getSpreadsheetTimeZone();
+  const lastRow = sheet.getLastRow();
+
+  const alertFn = (typeof SpreadsheetApp.getUi === 'function')
+    ? function (title, msg) { SpreadsheetApp.getUi().alert(title, msg, SpreadsheetApp.getUi().ButtonSet.OK); }
+    : function (title, msg) { console.log(title + '\n' + msg); };
+
+  if (lastRow < 2) { alertFn('Repair skipped', 'Attendance sheet is empty.'); return; }
+
+  const range = sheet.getRange(2, 6, lastRow - 1, 1);   // column F only
+  const colA  = sheet.getRange(2, 1, lastRow - 1, 1).getValues();
+  const out   = colA.map(function (r) {
+    const ts = r[0];
+    return [(ts instanceof Date)
+      ? Utilities.formatDate(ts, tz, 'yyyy-MM-dd')
+      : ''];
+  });
+
+  range.setNumberFormat('@');   // force plain text so Sheets stops re-typing it
+  range.setValues(out);
+
+  alertFn(
+    'Repair complete',
+    '✅ Column F rebuilt from column A using TZ ' + tz + '.\n\n' +
+    'If the sheet TZ is not Asia/Kuala_Lumpur, change it now:\n' +
+    'File → Settings → Time zone → (GMT+08:00) Kuala Lumpur'
+  );
+}
+
+/**
+ * Clear every cached config so the next punch rereads Settings,
+ * Employees, Holidays and Dashboard layout fresh.
+ */
+function clearAllCachesApi() {
+  const cache = CacheService.getScriptCache();
+  cache.remove(CACHE_EMPLOYEES_KEY);
+  cache.remove(CACHE_EMPLOYEES_FULL_KEY);
+  cache.remove(API_CACHE_SETTINGS_KEY);
+  cache.remove('goolee_settings_v2');
+  cache.remove('goolee_holidays_v2');
+  SpreadsheetApp.getActiveSpreadsheet().toast('All caches cleared.', 'Goolee', 3);
 }

@@ -107,8 +107,7 @@ function openHolidaysSheet() {
 
 function openSettingsSheet() {
   const ss = SpreadsheetApp.getActiveSpreadsheet();
-  let sheet = ss.getSheetByName(SHEET_SETTINGS);
-  if (!sheet) sheet = setupSettingsSheet();
+  const sheet = setupSettingsSheet();
   ss.setActiveSheet(sheet);
 }
 
@@ -157,6 +156,16 @@ function setupSettingsSheet() {
   if (!sheet) {
     sheet = ss.insertSheet(SHEET_SETTINGS);
   } else if (sheet.getLastRow() >= 1 && sheet.getRange(1, 1).getValue() === 'Setting') {
+    const existing = sheet.getRange(1, 1, sheet.getLastRow(), 1).getValues()
+      .map(r => String(r[0] || '').trim().toLowerCase());
+    const additions = [
+      ['Saturday Working Day', 'TRUE', 'Set FALSE to disable Saturday attendance.'],
+      ['Saturday Work Start Time', '09:00', '24-hour format. Saturday schedule.'],
+      ['Saturday Work End Time', '12:00', '24-hour format. Saturday schedule.']
+    ].filter(r => existing.indexOf(r[0].toLowerCase()) === -1);
+    if (additions.length) {
+      sheet.getRange(sheet.getLastRow() + 1, 1, additions.length, 3).setValues(additions);
+    }
     return sheet;
   }
 
@@ -175,6 +184,9 @@ function setupSettingsSheet() {
     ['Working Days',             DEFAULT_WORKING_DAYS, 'Use Mon,Tue,Wed,Thu,Fri or Mon-Fri.'],
     ['Work Start Time',          '10:00',              '24-hour format. Example: 09:00 or 10:00.'],
     ['Work End Time',            '19:00',              '24-hour format. Example: 18:00 or 19:00.'],
+    ['Saturday Working Day',     'TRUE',               'Set FALSE to disable Saturday attendance.'],
+    ['Saturday Work Start Time', '09:00',              '24-hour format. Saturday schedule.'],
+    ['Saturday Work End Time',   '12:00',              '24-hour format. Saturday schedule.'],
     ['Late After (min)',         '15',                 'Minutes after Work Start before a clock-in is late.'],
     ['Early Leave Grace (min)',  '15',                 'Minutes before Work End that still count as on-time exit.'],
     ['Company Name',             'Goolee',             'Shown in the dashboard title.']
@@ -377,26 +389,41 @@ function highlightLateInAttendanceInternal_() {
   const lastRow = Math.max(sheet.getMaxRows(), 200);
   const range = sheet.getRange(2, 1, lastRow - 1, 7);
 
-  const settings = readSettings_();
+  // Settings are edited directly by HR. Always use the current sheet values
+  // when rebuilding the dashboard instead of an older script-cache entry.
+  const settings = readSettings_(true);
   const lateHour = settings.workStartHour;
   const lateMin  = settings.workStartMin + settings.lateAfterMin;
   const endHour  = settings.workEndHour;
   const endMin   = Math.max(settings.workEndMin - settings.earlyLeaveMin, 0);
+  const satLateTotal = settings.saturdayStartHour * 60 +
+    settings.saturdayStartMin + settings.lateAfterMin;
+  const satLateHour = Math.floor(satLateTotal / 60);
+  const satLateMin = satLateTotal % 60;
+  const satEarlyTotal = settings.saturdayEndHour * 60 +
+    settings.saturdayEndMin - settings.earlyLeaveMin;
+  const satEarlyHour = Math.floor(Math.max(satEarlyTotal, 0) / 60);
+  const satEarlyMin = Math.max(satEarlyTotal, 0) % 60;
 
   const lateRule = SpreadsheetApp.newConditionalFormatRule()
     .whenFormulaSatisfied(
-      '=AND($C2="Clock In", TIMEVALUE($G2) > TIME(' + lateHour + ',' + lateMin + ',0))')
+      '=AND($C2="Clock In", IF(WEEKDAY($A2,2)=6,' +
+      'TIMEVALUE($G2)>TIME(' + satLateHour + ',' + satLateMin + ',0),' +
+      'TIMEVALUE($G2)>TIME(' + lateHour + ',' + lateMin + ',0)))')
     .setBackground(C.redLight).setFontColor(C.red).setRanges([range]).build();
 
   const earlyRule = SpreadsheetApp.newConditionalFormatRule()
     .whenFormulaSatisfied(
-      '=AND($C2="Clock Out", TIMEVALUE($G2) < TIME(' + endHour + ',' + endMin + ',0))')
+      '=AND($C2="Clock Out", IF(WEEKDAY($A2,2)=6,' +
+      'TIMEVALUE($G2)<TIME(' + satEarlyHour + ',' + satEarlyMin + ',0),' +
+      'TIMEVALUE($G2)<TIME(' + endHour + ',' + endMin + ',0)))')
     .setBackground(C.redLight).setFontColor(C.red).setRanges([range]).build();
 
   const overtimeRule = SpreadsheetApp.newConditionalFormatRule()
     .whenFormulaSatisfied(
-      '=AND($C2="Clock Out", TIMEVALUE($G2) > TIME(' +
-      settings.workEndHour + ',' + settings.workEndMin + ',0))')
+      '=AND($C2="Clock Out", IF(WEEKDAY($A2,2)=6,' +
+      'TIMEVALUE($G2)>TIME(' + settings.saturdayEndHour + ',' + settings.saturdayEndMin + ',0),' +
+      'TIMEVALUE($G2)>TIME(' + settings.workEndHour + ',' + settings.workEndMin + ',0)))')
     .setBackground(C.greenLight).setFontColor(C.green).setRanges([range]).build();
 
   const accuracyRule = SpreadsheetApp.newConditionalFormatRule()
@@ -409,15 +436,17 @@ function highlightLateInAttendanceInternal_() {
 // ════════════════════════════════════════════════════════════════════
 //  SETTINGS READER
 // ════════════════════════════════════════════════════════════════════
-function readSettings_() {
+function readSettings_(forceRefresh) {
   const cache = CacheService.getScriptCache();
-  const cached = cache.get(CACHE_SETTINGS_KEY);
-  if (cached) {
-    try {
-      const parsed = JSON.parse(cached);
-      parsed.workingDays = new Set(parsed.workingDays);
-      return parsed;
-    } catch (e) {}
+  if (!forceRefresh) {
+    const cached = cache.get(CACHE_SETTINGS_KEY);
+    if (cached) {
+      try {
+        const parsed = JSON.parse(cached);
+        parsed.workingDays = new Set(parsed.workingDays);
+        return parsed;
+      } catch (e) {}
+    }
   }
 
   const ss = SpreadsheetApp.getActiveSpreadsheet();
@@ -429,6 +458,11 @@ function readSettings_() {
     workStartMin:   DEFAULT_WORK_START_MIN,
     workEndHour:    DEFAULT_WORK_END_HOUR,
     workEndMin:     DEFAULT_WORK_END_MIN,
+    saturdayWorkingDay: false,
+    saturdayStartHour: 9,
+    saturdayStartMin:  0,
+    saturdayEndHour:   12,
+    saturdayEndMin:    0,
     lateAfterMin:   DEFAULT_LATE_AFTER_MIN,
     earlyLeaveMin:  DEFAULT_EARLY_LEAVE_MIN,
     companyName:    'Goolee'
@@ -444,6 +478,8 @@ function readSettings_() {
 
       if (key === 'working days') {
         out.workingDays = parseWorkingDays_(val);
+      } else if (key === 'saturday working day') {
+        out.saturdayWorkingDay = /^(true|yes|1)$/i.test(val);
       } else if (key === 'work start time') {
         const p = val.split(':');
         const h = Number(p[0]), m = Number(p[1] || 0);
@@ -454,6 +490,16 @@ function readSettings_() {
         const h = Number(p[0]), m = Number(p[1] || 0);
         if (!isNaN(h)) out.workEndHour = h;
         if (!isNaN(m)) out.workEndMin = m;
+      } else if (key === 'saturday work start time') {
+        const p = val.split(':');
+        const h = Number(p[0]), m = Number(p[1] || 0);
+        if (!isNaN(h)) out.saturdayStartHour = h;
+        if (!isNaN(m)) out.saturdayStartMin = m;
+      } else if (key === 'saturday work end time') {
+        const p = val.split(':');
+        const h = Number(p[0]), m = Number(p[1] || 0);
+        if (!isNaN(h)) out.saturdayEndHour = h;
+        if (!isNaN(m)) out.saturdayEndMin = m;
       } else if (key === 'late after (min)') {
         const n = Number(val); if (!isNaN(n)) out.lateAfterMin = n;
       } else if (key === 'early leave grace (min)') {
@@ -467,6 +513,9 @@ function readSettings_() {
   const serializable = Object.assign({}, out, {
     workingDays: Array.from(out.workingDays)
   });
+  if (out.saturdayWorkingDay) out.workingDays.add('Sat');
+  else out.workingDays.delete('Sat');
+  serializable.workingDays = Array.from(out.workingDays);
   try {
     cache.put(CACHE_SETTINGS_KEY, JSON.stringify(serializable), CACHE_CONFIG_TTL);
   } catch (e) {}
@@ -559,7 +608,7 @@ function buildContext_() {
   }
 
   const tz = ss.getSpreadsheetTimeZone();
-  const settings = readSettings_();
+  const settings = readSettings_(true);
   const holidays = readHolidays_();
   const holidaySet = new Set();
   holidays.forEach(h => holidaySet.add(h.date));
@@ -630,13 +679,14 @@ function buildContext_() {
   const dailyList = [];
   for (const k in dailyMap) {
     const rec = dailyMap[k];
+    const schedule = scheduleForTimestamp_(rec.clockIn || rec.clockOut, tz, settings);
     let hours = 0;
     if (rec.clockIn && rec.clockOut && rec.clockOut > rec.clockIn) {
       hours = (rec.clockOut - rec.clockIn) / 3600000;
     }
     const isHol = holidaySet.has(rec.date);
     const late = (rec.clockIn && !rec.leave && !isHol)
-      ? isLate_(rec.clockIn, tz, settings) : false;
+      ? isLate_(rec.clockIn, tz, schedule) : false;
 
     let leftEarly = false;
     let earlyMin = 0;
@@ -645,8 +695,8 @@ function buildContext_() {
       const outH = Number(Utilities.formatDate(rec.clockOut, tz, 'H'));
       const outM = Number(Utilities.formatDate(rec.clockOut, tz, 'm'));
       const outMin = outH * 60 + outM;
-      const endMin = settings.workEndHour * 60 + settings.workEndMin;
-      const earlyThreshold = endMin - settings.earlyLeaveMin;
+      const endMin = schedule.workEndHour * 60 + schedule.workEndMin;
+      const earlyThreshold = endMin - schedule.earlyLeaveMin;
 
       if (outMin < earlyThreshold) {
         leftEarly = true;
@@ -849,6 +899,22 @@ function readLeaves_() {
     out.push({ date: dateStr, name: name, type: type, notes: notes });
   }
   return out;
+}
+
+function scheduleForTimestamp_(ts, tz, settings) {
+  if (!ts) return settings;
+  const day = Utilities.formatDate(ts, tz, 'EEE');
+  if (day === 'Sat' && settings.saturdayWorkingDay) {
+    return {
+      workStartHour: settings.saturdayStartHour,
+      workStartMin: settings.saturdayStartMin,
+      workEndHour: settings.saturdayEndHour,
+      workEndMin: settings.saturdayEndMin,
+      lateAfterMin: settings.lateAfterMin,
+      earlyLeaveMin: settings.earlyLeaveMin
+    };
+  }
+  return settings;
 }
 
 function isLate_(ts, tz, settings) {

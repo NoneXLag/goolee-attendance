@@ -1009,12 +1009,14 @@
   const CONFIG = {
     API_URL: "https://script.google.com/macros/s/AKfycbzkMOPy0IMjVaBbQcRBmHby5OIR28cUEonUO0nrvgFWfXcIU63pExq3CWkQIqV-6Dtb/exec",
     ACCURACY_MAX_M: 100,
-    GPS_TIMEOUT_MS: 15000,
-    GPS_RETRIES: 3,
-    GPS_RETRY_DELAY_MS: 2000,
+    GPS_TIMEOUT_MS: 10000,
+    GPS_RETRIES: 2,
+    GPS_RETRY_DELAY_MS: 1000,
+    GPS_MAX_AGE_MS: 30000,
     PIN_MAX_TRIES: 5,
     PIN_LOCKOUT_MS: 5 * 60 * 1000,
-    REQUEST_TIMEOUT_MS: 25000
+    REQUEST_TIMEOUT_MS: 10000,
+    JSONP_TIMEOUT_MS: 12000,
   };
 
   const $ = id => document.getElementById(id);
@@ -1037,6 +1039,7 @@
   let currentPosition = null;
   let gpsAttempt = 0;
   let gpsLocked = false;
+  let workingDayAllowed = true;
 
   // ═════════════════════════════════════════════════════════════════════
   //  IN-APP BROWSER DETECTION
@@ -1203,7 +1206,7 @@
 
       const timer = setTimeout(
         () => finish(reject, new Error('Attendance server did not respond in time.')),
-        CONFIG.REQUEST_TIMEOUT_MS
+        CONFIG.JSONP_TIMEOUT_MS
       );
 
       script.src = CONFIG.API_URL + '?' + params.toString();
@@ -1217,23 +1220,40 @@
   const EMP_CACHE_KEY = 'goolee_employees_v2';
   let employeesLoading = null;
 
-  function loadEmployees() {
+  function loadEmployees(forceRefresh) {
     if (employeesLoading) return employeesLoading;
-    employeesLoading = loadEmployeesOnce().finally(() => { employeesLoading = null; });
+    employeesLoading = loadEmployeesOnce(!!forceRefresh).finally(() => { employeesLoading = null; });
     return employeesLoading;
   }
 
-  async function loadEmployeesOnce() {
+  async function loadEmployeesOnce(forceRefresh) {
     // If we're in an in-app browser, no point even trying — show the banner.
     if (showOpenInChromeBanner()) return;
 
-    try { sessionStorage.removeItem(EMP_CACHE_KEY); } catch (e) {}
+    if (!forceRefresh) {
+      try {
+        const cached = sessionStorage.getItem(EMP_CACHE_KEY);
+        if (cached) {
+          const parsed = JSON.parse(cached);
+          if (Array.isArray(parsed.employees) &&
+              Date.now() - parsed.ts < 10 * 60 * 1000) {
+            renderEmployees(parsed.employees);
+            msgArea.innerHTML = '';
+            return;
+          }
+        }
+      } catch (e) {}
+    }
 
     let lastErr = null;
 
     for (let attempt = 1; attempt <= 2; attempt++) {
       try {
-        const data = await apiCall({ action: 'employees', refresh: '1', _: Date.now() });
+        const data = await apiCall({
+          action: 'employees',
+          refresh: forceRefresh ? '1' : '0',
+          _: Date.now()
+        });
         const employees = data.employees || [];
         if (!Array.isArray(employees) || employees.length === 0) {
           throw new Error('Employee list was empty.');
@@ -1267,7 +1287,7 @@
       msgArea.innerHTML = '';
       employeeSelect.innerHTML =
         '<option value="" disabled selected>Loading employees…</option>';
-      loadEmployees();
+      loadEmployees(true);
     });
   }
 
@@ -1300,54 +1320,61 @@
   // ═════════════════════════════════════════════════════════════════════
   //  SETTINGS
   // ═════════════════════════════════════════════════════════════════════
-  const SETTINGS_CACHE_KEY = 'goolee_settings_v1';
-  const SETTINGS_CACHE_TTL = 10 * 60 * 1000;
-
   async function loadSettings() {
     let settings = null;
     try {
-      const cached = sessionStorage.getItem(SETTINGS_CACHE_KEY);
-      if (cached) {
-        const parsed = JSON.parse(cached);
-        if (Date.now() - parsed.ts < SETTINGS_CACHE_TTL) {
-          settings = parsed.settings;
-        }
-      }
+      // Settings are HR-controlled and must reflect the spreadsheet on each
+      // page load/refresh. Do not reuse a stale browser or Apps Script cache.
+      const data = await apiCall({ action: 'settings', refresh: '1', _: Date.now() });
+      settings = data.settings || null;
     } catch (e) {}
-
-    if (!settings) {
-      try {
-        const data = await apiCall({ action: 'settings' });
-        settings = data.settings || null;
-        if (settings) {
-          try {
-            sessionStorage.setItem(SETTINGS_CACHE_KEY, JSON.stringify({
-              settings, ts: Date.now()
-            }));
-          } catch (e) {}
-        }
-      } catch (e) {}
-    }
 
     settings = settings || {
       workStartHour: 10, workStartMin: 0,
       workEndHour: 19, workEndMin: 0,
+      saturdayWorkingDay: true,
+      saturdayStartHour: 9, saturdayStartMin: 0,
+      saturdayEndHour: 12, saturdayEndMin: 0,
       companyName: 'Goolee'
     };
     applySettings(settings);
   }
 
   function applySettings(s) {
-    const startH = Number(s.workStartHour) || 10;
-    const startM = Number(s.workStartMin) || 0;
-    const endH   = Number(s.workEndHour) || 19;
-    const endM   = Number(s.workEndMin) || 0;
+    const isSaturday = new Intl.DateTimeFormat('en-US', {
+      weekday: 'short', timeZone: 'Asia/Kuala_Lumpur'
+    }).format(new Date()) === 'Sat';
+    const saturday = isSaturday && s.saturdayWorkingDay;
+    const startH = Number(saturday ? s.saturdayStartHour : s.workStartHour) || 10;
+    const startM = Number(saturday ? s.saturdayStartMin : s.workStartMin) || 0;
+    const endH   = Number(saturday ? s.saturdayEndHour : s.workEndHour) || 19;
+    const endM   = Number(saturday ? s.saturdayEndMin : s.workEndMin) || 0;
+    const configuredDays = String(s.workingDays || 'Mon,Tue,Wed,Thu,Fri')
+      .split(',').map(v => v.trim());
+    const today = new Intl.DateTimeFormat('en-US', {
+      weekday: 'short', timeZone: 'Asia/Kuala_Lumpur'
+    }).format(new Date());
+    workingDayAllowed = configuredDays.some(item => {
+      const range = item.match(/^(\w{3})\s*-\s*(\w{3})$/i);
+      if (!range) return item.toLowerCase() === today.toLowerCase();
+      const names = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+      const start = names.findIndex(d => d.toLowerCase() === range[1].toLowerCase());
+      const end = names.findIndex(d => d.toLowerCase() === range[2].toLowerCase());
+      const current = names.indexOf(today);
+      if (start < 0 || end < 0 || current < 0) return false;
+      return start <= end ? current >= start && current <= end
+        : current >= start || current <= end;
+    });
+    if (today === 'Sat' && s.saturdayWorkingDay) workingDayAllowed = true;
 
     if (workHoursText) {
       workHoursText.textContent =
         'Working hours: ' + formatTime(startH, startM) + ' – ' + formatTime(endH, endM);
     }
     if (workHoursBadge) workHoursBadge.hidden = false;
+    if (!workingDayAllowed && typeof setLocationState === 'function') {
+      setLocationState('closed', 'Non-working day · attendance unavailable');
+    }
   }
 
   // ═════════════════════════════════════════════════════════════════════
@@ -1363,6 +1390,10 @@
     gpsAttempt = 0;
     gpsLocked = false;
     currentPosition = null;
+    if (!workingDayAllowed) {
+      setLocationState('closed', 'Non-working day · attendance unavailable');
+      return;
+    }
     attemptLocation();
   }
 
@@ -1376,7 +1407,7 @@
     navigator.geolocation.getCurrentPosition(onGpsSuccess, onGpsError, {
       enableHighAccuracy: true,
       timeout: CONFIG.GPS_TIMEOUT_MS,
-      maximumAge: 0
+      maximumAge: CONFIG.GPS_MAX_AGE_MS
     });
   }
 
@@ -1435,7 +1466,7 @@
     } else if (kind === 'timeout') {
       html = `<div class="msg msg-error">
         <span class="msg-title">📍 Still locating you…</span>
-        This can take up to 15 seconds outdoors. Please keep the page open.
+        This can take up to 10 seconds outdoors. Please keep the page open.
         <button type="button" class="msg-retry" id="retryLocBtn">Retry manually</button></div>`;
     } else {
       html = `<div class="msg msg-error">
@@ -1477,7 +1508,7 @@
   function clearLock(name) { setLock(name, { tries: 0, until: 0 }); }
 
   function updateButtons() {
-    const ready = gpsLocked && !!currentPosition;
+    const ready = workingDayAllowed && gpsLocked && !!currentPosition;
     clockInBtn.disabled  = !ready;
     clockOutBtn.disabled = !ready;
   }
@@ -1542,7 +1573,7 @@
 
         const popupReasons = [
           'already_clocked_in','already_clocked_out','no_clock_in',
-          'bad_pin','locked_out','bad_gps','unknown_employee'
+          'bad_pin','locked_out','bad_gps','unknown_employee','non_working_day'
         ];
         if (popupReasons.indexOf(res.reason) !== -1) {
           showBlockedPopup(res.reason, res.message, res.existingTime);
@@ -1625,7 +1656,8 @@
     const isWarning = (
       reason === 'already_clocked_in' ||
       reason === 'already_clocked_out' ||
-      reason === 'no_clock_in'
+      reason === 'no_clock_in' ||
+      reason === 'non_working_day'
     );
     overlayCard.className = 'overlay-card' + (isWarning ? ' overlay--warn' : ' overlay--error');
     overlayIconSvg.innerHTML = isWarning
@@ -1639,7 +1671,8 @@
       'bad_pin':             'Incorrect PIN',
       'locked_out':          'Temporarily Locked',
       'bad_gps':             'Location Problem',
-      'unknown_employee':    'Employee Not Found'
+      'unknown_employee':    'Employee Not Found',
+      'non_working_day':     'Non-working Day'
     };
     okTitle.textContent = titles[reason] || 'Punch Not Recorded';
     okName.textContent  = escapeHtml(employeeSelect.value || '');
@@ -1689,16 +1722,16 @@
     const now = Date.now();
     if (now - lastEmpLoad < 5000) return;
     lastEmpLoad = now;
+    loadSettings();
     loadEmployees();
   };
 
-  loadSettings();
+  loadSettings().finally(requestLocation);
   loadEmployees();
   window.addEventListener('pageshow', reloadEmployees);
   document.addEventListener('visibilitychange', () => {
     if (document.visibilityState === 'visible') reloadEmployees();
   });
-  requestLocation();
 
 })();
 </script>

@@ -259,6 +259,9 @@ Settings Sheet
 - Working Days: Mon,Tue,Wed,Thu,Fri (supports Mon-Fri ranges)
 - Work Start Time: 10:00 (24-hour format)
 - Work End Time: 19:00 (24-hour format)
+- Saturday Working Day: TRUE or FALSE
+- Saturday Work Start Time: 09:00 (24-hour format)
+- Saturday Work End Time: 12:00 (24-hour format)
 - Late After (min): 15
 - Early Leave Grace (min): 15
 - Company Name: Goolee
@@ -269,12 +272,13 @@ Inside the <script> block:
 const CONFIG = {
   API_URL: "...",              // your Apps Script deployment URL
   ACCURACY_MAX_M: 100,         // max GPS accuracy in metres
-  GPS_TIMEOUT_MS: 15000,       // how long to wait for a GPS lock
-  GPS_RETRIES: 3,              // retries on poor accuracy
-  GPS_RETRY_DELAY_MS: 2000,    // delay between retries
+  GPS_TIMEOUT_MS: 10000,       // how long to wait for a GPS lock
+  GPS_RETRIES: 2,              // retries on poor accuracy
+  GPS_RETRY_DELAY_MS: 1000,    // delay between retries
+  GPS_MAX_AGE_MS: 30000,       // allow a recent cached phone location
   PIN_MAX_TRIES: 5,            // before lockout
   PIN_LOCKOUT_MS: 5 * 60 * 1000, // 5-minute lockout
-  REQUEST_TIMEOUT_MS: 25000    // API timeout
+  REQUEST_TIMEOUT_MS: 10000    // fetch timeout
 };
 
 Backend Constants (Code.gs)

@@ -53,7 +53,10 @@ function doGet(e) {
     });
   }
   if (action === 'settings') {
-    return respond_(p.callback, { ok: true, settings: getSettings_() });
+    return respond_(p.callback, {
+      ok: true,
+      settings: getSettings_(p.refresh === '1')
+    });
   }
   if (action === 'punch') {
     return respond_(p.callback, handlePunch_(p));
@@ -72,19 +75,26 @@ function doPost(e) {
 // ═══════════════════════════════════════════════════════════════════════
 // SETTINGS — read from Settings sheet, cached
 // ═══════════════════════════════════════════════════════════════════════
-function getSettings_() {
+function getSettings_(forceRefresh) {
   const cache = CacheService.getScriptCache();
-  const cached = cache.get(API_CACHE_SETTINGS_KEY);
-  if (cached) {
-    try { return JSON.parse(cached); } catch (e) {}
+  if (!forceRefresh) {
+    const cached = cache.get(API_CACHE_SETTINGS_KEY);
+    if (cached) {
+      try { return JSON.parse(cached); } catch (e) {}
+    }
   }
 
   const out = {
     workingDays:    'Mon,Tue,Wed,Thu,Fri',
+    saturdayWorkingDay: false,
     workStartHour:  10,
     workStartMin:   0,
     workEndHour:    19,
     workEndMin:     0,
+    saturdayStartHour: 9,
+    saturdayStartMin:  0,
+    saturdayEndHour:   12,
+    saturdayEndMin:    0,
     lateAfterMin:   15,
     earlyLeaveMin:  15,
     companyName:    'Goolee'
@@ -102,6 +112,8 @@ function getSettings_() {
 
         if (key === 'working days') {
           out.workingDays = val;
+        } else if (key === 'saturday working day') {
+          out.saturdayWorkingDay = /^(true|yes|1)$/i.test(val);
         } else if (key === 'work start time') {
           const parts = val.split(':');
           out.workStartHour = parseInt(parts[0], 10);
@@ -110,6 +122,14 @@ function getSettings_() {
           const parts = val.split(':');
           out.workEndHour = parseInt(parts[0], 10);
           out.workEndMin  = parseInt(parts[1] || '0', 10);
+        } else if (key === 'saturday work start time') {
+          const parts = val.split(':');
+          out.saturdayStartHour = parseInt(parts[0], 10);
+          out.saturdayStartMin  = parseInt(parts[1] || '0', 10);
+        } else if (key === 'saturday work end time') {
+          const parts = val.split(':');
+          out.saturdayEndHour = parseInt(parts[0], 10);
+          out.saturdayEndMin  = parseInt(parts[1] || '0', 10);
         } else if (key === 'late after (min)') {
           out.lateAfterMin = parseInt(val, 10) || 15;
         } else if (key === 'early leave grace (min)') {
@@ -127,6 +147,13 @@ function getSettings_() {
   if (isNaN(out.workStartMin))  out.workStartMin  = 0;
   if (isNaN(out.workEndHour))   out.workEndHour   = 19;
   if (isNaN(out.workEndMin))    out.workEndMin    = 0;
+  if (isNaN(out.saturdayStartHour)) out.saturdayStartHour = 9;
+  if (isNaN(out.saturdayStartMin))  out.saturdayStartMin  = 0;
+  if (isNaN(out.saturdayEndHour))   out.saturdayEndHour   = 12;
+  if (isNaN(out.saturdayEndMin))    out.saturdayEndMin    = 0;
+  if (out.saturdayWorkingDay && !/\bSat\b/i.test(out.workingDays)) {
+    out.workingDays += ',Sat';
+  }
 
   try { cache.put(API_CACHE_SETTINGS_KEY, JSON.stringify(out), API_CACHE_SETTINGS_TTL); } catch (e) {}
   return out;
@@ -297,6 +324,51 @@ function getTodayPunches_(employeeName, tz) {
   return { hasIn, hasOut, inTime, outTime };
 }
 
+function apiScheduleForDate_(date, tz, settings) {
+  const day = Utilities.formatDate(date, tz, 'EEE');
+  if (day === 'Sat' && settings.saturdayWorkingDay) {
+    return {
+      workStartHour: settings.saturdayStartHour,
+      workStartMin: settings.saturdayStartMin,
+      workEndHour: settings.saturdayEndHour,
+      workEndMin: settings.saturdayEndMin,
+      lateAfterMin: settings.lateAfterMin,
+      earlyLeaveMin: settings.earlyLeaveMin
+    };
+  }
+  return settings;
+}
+
+function apiWorkingDays_(value) {
+  const names = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+  const set = new Set();
+  String(value || '').split(',').forEach(part => {
+    const item = part.trim();
+    const range = item.match(/^(\w{3})\s*-\s*(\w{3})$/i);
+    if (range) {
+      const start = names.findIndex(d => d.toLowerCase() === range[1].toLowerCase());
+      const end = names.findIndex(d => d.toLowerCase() === range[2].toLowerCase());
+      if (start >= 0 && end >= 0) {
+        let i = start;
+        for (let guard = 0; guard < 7; guard++) {
+          set.add(names[i]);
+          if (i === end) break;
+          i = (i + 1) % 7;
+        }
+      }
+    } else {
+      const day = names.find(d => d.toLowerCase() === item.toLowerCase());
+      if (day) set.add(day);
+    }
+  });
+  return set;
+}
+
+function apiIsWorkingDay_(date, tz, settings) {
+  const day = Utilities.formatDate(date, tz, 'EEE');
+  return apiWorkingDays_(settings.workingDays).has(day);
+}
+
 // ═══════════════════════════════════════════════════════════════════════
 // Punch handler
 // ═══════════════════════════════════════════════════════════════════════
@@ -338,6 +410,15 @@ function handlePunch_(body) {
   const tz  = SpreadsheetApp.getActiveSpreadsheet().getSpreadsheetTimeZone();
   const dateStr = Utilities.formatDate(now, tz, 'yyyy-MM-dd');
   const timeStr = Utilities.formatDate(now, tz, 'HH:mm:ss');
+  const settings = getSettings_(true);
+
+  if (!apiIsWorkingDay_(now, tz, settings)) {
+    return {
+      ok: false,
+      reason: 'non_working_day',
+      message: 'Today is not a working day. Attendance cannot be recorded.'
+    };
+  }
 
   // ── Duplicate check now reads column A only (see getTodayPunches_) ──
   const existing = getTodayPunches_(employee.name, tz);
@@ -379,7 +460,8 @@ function handlePunch_(body) {
   ]]);
 
   // ── Early / overtime calculation for Clock Out ──
-  const settings = getSettings_();
+  // HR may have edited Settings since the last request. Read the sheet
+  // directly so punch status uses the current work hours and grace rules.
   let punchStatus = 'normal';
   let statusLabel = '';
   let overtimeMinutes = 0;
@@ -389,8 +471,9 @@ function handlePunch_(body) {
     const nowH = Number(Utilities.formatDate(now, tz, 'H'));
     const nowM = Number(Utilities.formatDate(now, tz, 'm'));
     const nowMin = nowH * 60 + nowM;
-    const endMin = settings.workEndHour * 60 + settings.workEndMin;
-    const earlyThreshold = endMin - settings.earlyLeaveMin;
+    const schedule = apiScheduleForDate_(now, tz, settings);
+    const endMin = schedule.workEndHour * 60 + schedule.workEndMin;
+    const earlyThreshold = endMin - schedule.earlyLeaveMin;
 
     if (nowMin > endMin) {
       overtimeMinutes = nowMin - endMin;
@@ -418,7 +501,10 @@ function handlePunch_(body) {
     statusLabel: statusLabel,
     overtimeMinutes: overtimeMinutes,
     earlyMinutes: earlyMinutes,
-    workEndLabel: formatTimeLabel_(settings.workEndHour, settings.workEndMin)
+    workEndLabel: formatTimeLabel_(
+      apiScheduleForDate_(now, tz, settings).workEndHour,
+      apiScheduleForDate_(now, tz, settings).workEndMin
+    )
   };
 }
 

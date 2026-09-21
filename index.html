@@ -1332,6 +1332,9 @@
     settings = settings || {
       workStartHour: 10, workStartMin: 0,
       workEndHour: 19, workEndMin: 0,
+      saturdayWorkingDay: true,
+      saturdayStartHour: 9, saturdayStartMin: 0,
+      saturdayEndHour: 12, saturdayEndMin: 0,
       companyName: 'Goolee'
     };
     applySettings(settings);
@@ -1342,10 +1345,19 @@
     const startM = Number(s.workStartMin) || 0;
     const endH   = Number(s.workEndHour) || 19;
     const endM   = Number(s.workEndMin) || 0;
+    const saturdayEnabled = s.saturdayWorkingDay !== false;
+    const saturdayStartH = Number(s.saturdayStartHour) || 9;
+    const saturdayStartM = Number(s.saturdayStartMin) || 0;
+    const saturdayEndH   = Number(s.saturdayEndHour) || 12;
+    const saturdayEndM   = Number(s.saturdayEndMin) || 0;
 
     if (workHoursText) {
-      workHoursText.textContent =
-        'Working hours: ' + formatTime(startH, startM) + ' – ' + formatTime(endH, endM);
+      let text = 'Mon–Fri: ' + formatTime(startH, startM) + ' – ' + formatTime(endH, endM);
+      if (saturdayEnabled) {
+        text += '  ·  Sat: ' + formatTime(saturdayStartH, saturdayStartM) +
+          ' – ' + formatTime(saturdayEndH, saturdayEndM);
+      }
+      workHoursText.textContent = text;
     }
     if (workHoursBadge) workHoursBadge.hidden = false;
   }

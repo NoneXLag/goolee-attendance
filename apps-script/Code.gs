@@ -28,7 +28,7 @@ const PIN_LOCKOUT_MINUTES = 5;
 // ── Cache keys (API-specific, prefixed to avoid Dashboard.gs clashes) ──
 const CACHE_EMPLOYEES_KEY      = 'goolee_employees_cache_v2';
 const CACHE_EMPLOYEES_FULL_KEY = 'goolee_employees_full_v2';
-const API_CACHE_SETTINGS_KEY   = 'goolee_settings_api_v1';
+const API_CACHE_SETTINGS_KEY   = 'goolee_settings_api_v2';
 const CACHE_EMPLOYEES_TTL      = 600;   // 10 min
 const API_CACHE_SETTINGS_TTL   = 600;   // 10 min
 
@@ -81,10 +81,15 @@ function getSettings_() {
 
   const out = {
     workingDays:    'Mon,Tue,Wed,Thu,Fri',
+    saturdayWorkingDay: true,
     workStartHour:  10,
     workStartMin:   0,
     workEndHour:    19,
     workEndMin:     0,
+    saturdayStartHour: 9,
+    saturdayStartMin:  0,
+    saturdayEndHour:   12,
+    saturdayEndMin:    0,
     lateAfterMin:   15,
     earlyLeaveMin:  15,
     companyName:    'Goolee'
@@ -102,6 +107,8 @@ function getSettings_() {
 
         if (key === 'working days') {
           out.workingDays = val;
+        } else if (key === 'saturday working day') {
+          out.saturdayWorkingDay = /^(true|yes|1)$/i.test(val);
         } else if (key === 'work start time') {
           const parts = val.split(':');
           out.workStartHour = parseInt(parts[0], 10);
@@ -110,6 +117,14 @@ function getSettings_() {
           const parts = val.split(':');
           out.workEndHour = parseInt(parts[0], 10);
           out.workEndMin  = parseInt(parts[1] || '0', 10);
+        } else if (key === 'saturday work start time') {
+          const parts = val.split(':');
+          out.saturdayStartHour = parseInt(parts[0], 10);
+          out.saturdayStartMin  = parseInt(parts[1] || '0', 10);
+        } else if (key === 'saturday work end time') {
+          const parts = val.split(':');
+          out.saturdayEndHour = parseInt(parts[0], 10);
+          out.saturdayEndMin  = parseInt(parts[1] || '0', 10);
         } else if (key === 'late after (min)') {
           out.lateAfterMin = parseInt(val, 10) || 15;
         } else if (key === 'early leave grace (min)') {
@@ -127,6 +142,13 @@ function getSettings_() {
   if (isNaN(out.workStartMin))  out.workStartMin  = 0;
   if (isNaN(out.workEndHour))   out.workEndHour   = 19;
   if (isNaN(out.workEndMin))    out.workEndMin    = 0;
+  if (isNaN(out.saturdayStartHour)) out.saturdayStartHour = 9;
+  if (isNaN(out.saturdayStartMin))  out.saturdayStartMin  = 0;
+  if (isNaN(out.saturdayEndHour))   out.saturdayEndHour   = 12;
+  if (isNaN(out.saturdayEndMin))    out.saturdayEndMin    = 0;
+  if (out.saturdayWorkingDay && !/\bSat\b/i.test(out.workingDays)) {
+    out.workingDays += ',Sat';
+  }
 
   try { cache.put(API_CACHE_SETTINGS_KEY, JSON.stringify(out), API_CACHE_SETTINGS_TTL); } catch (e) {}
   return out;
@@ -389,8 +411,9 @@ function handlePunch_(body) {
     const nowH = Number(Utilities.formatDate(now, tz, 'H'));
     const nowM = Number(Utilities.formatDate(now, tz, 'm'));
     const nowMin = nowH * 60 + nowM;
-    const endMin = settings.workEndHour * 60 + settings.workEndMin;
-    const earlyThreshold = endMin - settings.earlyLeaveMin;
+    const schedule = apiScheduleForDate_(now, tz, settings);
+    const endMin = schedule.workEndHour * 60 + schedule.workEndMin;
+    const earlyThreshold = endMin - schedule.earlyLeaveMin;
 
     if (nowMin > endMin) {
       overtimeMinutes = nowMin - endMin;
@@ -418,7 +441,10 @@ function handlePunch_(body) {
     statusLabel: statusLabel,
     overtimeMinutes: overtimeMinutes,
     earlyMinutes: earlyMinutes,
-    workEndLabel: formatTimeLabel_(settings.workEndHour, settings.workEndMin)
+    workEndLabel: formatTimeLabel_(
+      apiScheduleForDate_(now, tz, settings).workEndHour,
+      apiScheduleForDate_(now, tz, settings).workEndMin
+    )
   };
 }
 
@@ -675,4 +701,19 @@ function clearAllCachesApi() {
   cache.remove('goolee_settings_v2');
   cache.remove('goolee_holidays_v2');
   SpreadsheetApp.getActiveSpreadsheet().toast('All caches cleared.', 'Goolee', 3);
+}
+
+function apiScheduleForDate_(date, tz, settings) {
+  const day = Utilities.formatDate(date, tz, 'EEE');
+  if (day === 'Sat' && settings.saturdayWorkingDay) {
+    return {
+      workStartHour: settings.saturdayStartHour,
+      workStartMin: settings.saturdayStartMin,
+      workEndHour: settings.saturdayEndHour,
+      workEndMin: settings.saturdayEndMin,
+      lateAfterMin: settings.lateAfterMin,
+      earlyLeaveMin: settings.earlyLeaveMin
+    };
+  }
+  return settings;
 }

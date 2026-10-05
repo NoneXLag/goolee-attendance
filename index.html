@@ -740,7 +740,7 @@
         <div class="step-num">4</div>
         <div class="step-text">
           <div class="step-title">Tap Clock In or Clock Out</div>
-          <div class="step-sub">Green = start of day. Red = end of day.</div>
+          <div class="step-sub">Clock In to start a session. Clock Out to finish it.</div>
         </div>
       </div>
       <div class="step">
@@ -768,10 +768,10 @@
         Working hours
       </div>
       <ul>
-        <li>Start: <strong style="margin-left:4px;">10:00 AM</strong></li>
-        <li>End: <strong style="margin-left:4px;">7:00 PM</strong></li>
-        <li>Late after: <strong style="margin-left:4px;">10:15 AM</strong></li>
-        <li>Early leave before: <strong style="margin-left:4px;">6:45 PM</strong></li>
+        <li>Clock in/out: <strong style="margin-left:4px;">Any time</strong></li>
+        <li>Sessions: <strong style="margin-left:4px;">As needed</strong></li>
+        <li>Weekly target: <strong style="margin-left:4px;">45 hours</strong></li>
+        <li>Remember: <strong style="margin-left:4px;">Clock out each session</strong></li>
       </ul>
     </div>
 
@@ -789,7 +789,7 @@
         <tr><td>📍 Accuracy poor</td><td>Step outside or near a window. Wait 10 seconds. Tap Retry.</td></tr>
         <tr><td>🔑 Wrong PIN</td><td>3 tries allowed. After 3 wrong, wait 5 minutes.</td></tr>
         <tr><td>🔑 Forgot PIN</td><td>Ask HR to reset it.</td></tr>
-        <tr><td>⏰ Already clocked in</td><td>One clock-in per day. Tell HR to correct.</td></tr>
+        <tr><td>⏰ Session still open</td><td>Clock Out before starting another session.</td></tr>
       </table>
     </div>
 
@@ -825,7 +825,7 @@
             <circle cx="12" cy="12" r="10"/>
             <path d="M12 6v6l4 2"/>
           </svg>
-          <span id="workHoursText">Working hours: 10:00 AM – 7:00 PM</span>
+          <span id="workHoursText">Flexible hours · 45 hours required each week</span>
         </div>
       </div>
 
@@ -912,7 +912,7 @@
           </div>
           <div class="manual-step">
             <div class="num">4</div>
-            <div class="txt"><strong>Tap Clock In or Clock Out</strong>Green = start. Red = end.</div>
+            <div class="txt"><strong>Tap Clock In or Clock Out</strong>Use one pair for each work session.</div>
           </div>
           <div class="manual-step">
             <div class="num">5</div>
@@ -922,10 +922,10 @@
           <div class="mobile-hours">
             <div class="mobile-hours-title">⏰ Working hours</div>
             <ul>
-              <li><span>Start</span><strong>10:00 AM</strong></li>
-              <li><span>End</span><strong>7:00 PM</strong></li>
-              <li><span>Late after</span><strong>10:15 AM</strong></li>
-              <li><span>Early before</span><strong>6:45 PM</strong></li>
+              <li><span>Clock in/out</span><strong>Any time</strong></li>
+              <li><span>Sessions</span><strong>As needed</strong></li>
+              <li><span>Weekly target</span><strong>45 hours</strong></li>
+              <li><span>Each session</span><strong>In → Out</strong></li>
             </ul>
           </div>
 
@@ -948,8 +948,8 @@
               <span>Ask HR to reset it.</span>
             </div>
             <div class="mobile-issue">
-              <strong>⏰ Already clocked in</strong>
-              <span>One clock-in per day. Tell HR to correct.</span>
+              <strong>⏰ Session still open</strong>
+              <span>Clock Out before starting another session.</span>
             </div>
           </div>
 
@@ -1330,34 +1330,18 @@
     }
 
     settings = settings || {
-      workStartHour: 10, workStartMin: 0,
-      workEndHour: 19, workEndMin: 0,
+      weeklyHoursTarget: 45,
       saturdayWorkingDay: true,
-      saturdayStartHour: 9, saturdayStartMin: 0,
-      saturdayEndHour: 12, saturdayEndMin: 0,
       companyName: 'Goolee'
     };
     applySettings(settings);
   }
 
   function applySettings(s) {
-    const startH = Number(s.workStartHour) || 10;
-    const startM = Number(s.workStartMin) || 0;
-    const endH   = Number(s.workEndHour) || 19;
-    const endM   = Number(s.workEndMin) || 0;
-    const saturdayEnabled = s.saturdayWorkingDay !== false;
-    const saturdayStartH = Number(s.saturdayStartHour) || 9;
-    const saturdayStartM = Number(s.saturdayStartMin) || 0;
-    const saturdayEndH   = Number(s.saturdayEndHour) || 12;
-    const saturdayEndM   = Number(s.saturdayEndMin) || 0;
+    const weeklyTarget = Number(s.weeklyHoursTarget) || 45;
 
     if (workHoursText) {
-      let text = 'Mon–Fri: ' + formatTime(startH, startM) + ' – ' + formatTime(endH, endM);
-      if (saturdayEnabled) {
-        text += '  ·  Sat: ' + formatTime(saturdayStartH, saturdayStartM) +
-          ' – ' + formatTime(saturdayEndH, saturdayEndM);
-      }
-      workHoursText.textContent = text;
+      workHoursText.textContent = 'Flexible hours · ' + weeklyTarget + ' hours required each week';
     }
     if (workHoursBadge) workHoursBadge.hidden = false;
   }
@@ -1542,18 +1526,15 @@
 
         let inlineText = res.message || 'Punch could not be recorded.';
         if (res.reason === 'already_clocked_in') {
-          inlineText = 'You have already clocked in today at ' + (res.existingTime || 'earlier today') +
-            '. Only one clock-in per day is allowed.';
-        } else if (res.reason === 'already_clocked_out') {
-          inlineText = 'You have already clocked out today at ' + (res.existingTime || 'earlier today') +
-            '. Only one clock-out per day is allowed.';
+          inlineText = 'You are currently clocked in since ' + (res.existingTime || 'earlier') +
+            '. Clock Out before starting another session.';
         } else if (res.reason === 'no_clock_in') {
-          inlineText = "You haven't clocked in today yet. Please Clock In first before Clock Out.";
+          inlineText = 'No work session is open. Please Clock In first.';
         }
         showFormError(inlineText);
 
         const popupReasons = [
-          'already_clocked_in','already_clocked_out','no_clock_in',
+          'already_clocked_in','no_clock_in',
           'bad_pin','locked_out','bad_gps','unknown_employee'
         ];
         if (popupReasons.indexOf(res.reason) !== -1) {
@@ -1582,22 +1563,12 @@
   //  CONFIRMATION OVERLAY
   // ═════════════════════════════════════════════════════════════════════
   function showConfirmation(data) {
-    const status = data.punchStatus || 'normal';
-    const isEarly = status === 'early';
-    const isOvertime = status === 'overtime';
-
-    overlayCard.className = 'overlay-card' + (isEarly ? ' overlay--warn' : '');
-    overlayIconSvg.innerHTML = isEarly
-      ? '<circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/>'
-      : '<polyline points="20 6 9 17 4 12"/>';
+    overlayCard.className = 'overlay-card';
+    overlayIconSvg.innerHTML = '<polyline points="20 6 9 17 4 12"/>';
 
     let title;
     if (data.punchType === 'Clock In') {
       title = 'Clocked In!';
-    } else if (isEarly) {
-      title = 'Clocked Out Early';
-    } else if (isOvertime) {
-      title = 'Clocked Out — Overtime';
     } else {
       title = 'Clocked Out!';
     }
@@ -1613,22 +1584,13 @@
       <div class="row"><span class="label">Time</span><span class="value">${escapeHtml(data.time || '—')}</span></div>
     `;
 
-    if (isOvertime) {
-      rows += `<div class="row"><span class="label">Overtime</span><span class="value is-green">+${escapeHtml(data.statusLabel || '0m')}</span></div>`;
-    } else if (isEarly) {
-      rows += `<div class="row"><span class="label">Left early by</span><span class="value is-amber">${escapeHtml(data.statusLabel || '0m')}</span></div>`;
-      if (data.workEndLabel) {
-        rows += `<div class="row"><span class="label">Shift ends</span><span class="value">${escapeHtml(data.workEndLabel)}</span></div>`;
-      }
-    }
-
     rows += `
       <div class="row"><span class="label">Location</span><span class="value">±${escapeHtml(acc)}</span></div>
       <div class="row"><span class="label">Map</span><span class="value"><a href="${escapeHtml(maps)}" target="_blank" rel="noopener" style="color:inherit;text-decoration:underline;">Open</a></span></div>
     `;
     okMeta.innerHTML = rows;
 
-    $('okClose').textContent = isEarly ? 'Got it' : 'Done';
+    $('okClose').textContent = 'Done';
     overlay.hidden = false;
     $('okClose').focus();
   }
@@ -1636,7 +1598,6 @@
   function showBlockedPopup(reason, message, existingTime) {
     const isWarning = (
       reason === 'already_clocked_in' ||
-      reason === 'already_clocked_out' ||
       reason === 'no_clock_in'
     );
     overlayCard.className = 'overlay-card' + (isWarning ? ' overlay--warn' : ' overlay--error');
@@ -1646,8 +1607,7 @@
 
     const titles = {
       'already_clocked_in':  'Already Clocked In',
-      'already_clocked_out': 'Already Clocked Out',
-      'no_clock_in':         'No Clock-In Found',
+      'no_clock_in':         'No Open Session',
       'bad_pin':             'Incorrect PIN',
       'locked_out':          'Temporarily Locked',
       'bad_gps':             'Location Problem',
@@ -1661,17 +1621,11 @@
       meta = `
         <div class="row"><span class="label">Status</span><span class="value">Already clocked in</span></div>
         ${existingTime ? `<div class="row"><span class="label">Earlier punch</span><span class="value">${escapeHtml(existingTime)}</span></div>` : ''}
-        <div class="row"><span class="label">Rule</span><span class="value">One clock-in per day</span></div>
-      `;
-    } else if (reason === 'already_clocked_out') {
-      meta = `
-        <div class="row"><span class="label">Status</span><span class="value">Already clocked out</span></div>
-        ${existingTime ? `<div class="row"><span class="label">Earlier punch</span><span class="value">${escapeHtml(existingTime)}</span></div>` : ''}
-        <div class="row"><span class="label">Rule</span><span class="value">One clock-out per day</span></div>
+        <div class="row"><span class="label">Rule</span><span class="value">Clock Out before another Clock In</span></div>
       `;
     } else if (reason === 'no_clock_in') {
       meta = `
-        <div class="row"><span class="label">Status</span><span class="value">No clock-in today</span></div>
+        <div class="row"><span class="label">Status</span><span class="value">No open work session</span></div>
         <div class="row"><span class="label">Next step</span><span class="value">Clock In first</span></div>
       `;
     } else {

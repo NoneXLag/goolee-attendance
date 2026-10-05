@@ -4,7 +4,7 @@
  * ════════════════════════════════════════════════════════════════════
  *  • Every section aligned to columns A:L
  *  • breakApart() at start so leftover merges never linger
- *  • Today's Performance + monthly table + leave + holidays + daily log
+ *  • Today's Performance + weekly hours monitoring + leave + holidays + daily log
  * ════════════════════════════════════════════════════════════════════
  */
 
@@ -24,6 +24,7 @@ const DEFAULT_WORK_END_HOUR    = 19;
 const DEFAULT_WORK_END_MIN     = 0;
 const DEFAULT_LATE_AFTER_MIN   = 15;
 const DEFAULT_EARLY_LEAVE_MIN  = 15;
+const DEFAULT_WEEKLY_HOURS_TARGET = 45;
 
 const LOG_DAYS_BACK     = 14;
 const EMP_LOG_DAYS_BACK = 30;
@@ -82,7 +83,7 @@ function onOpen() {
     .addItem('⚙️  Open Settings Sheet',          'openSettingsSheet')
     .addSeparator()
     .addItem('🧹  Clear all caches',             'clearAllCaches')
-    .addItem('🎨  Reapply red highlight',        'highlightLateInAttendance')
+    .addItem('🎨  Refresh attendance formatting', 'highlightLateInAttendance')
     .addSeparator()
     .addItem('⏱️  Enable auto-refresh after punch', 'setupDashboardAutoRefresh')
     .addItem('🔍  Diagnose auto-refresh',        'diagnoseAutoRefresh')
@@ -177,10 +178,11 @@ function setupSettingsSheet() {
     ['Saturday Working Day',     'TRUE',               'Saturday is a working day with its own hours. Set FALSE to disable.'],
     ['Saturday Work Start Time', '09:00',              '24-hour format. Saturday only.'],
     ['Saturday Work End Time',   '12:00',              '24-hour format. Saturday only.'],
-    ['Work Start Time',          '10:00',              '24-hour format. Example: 09:00 or 10:00.'],
-    ['Work End Time',            '19:00',              '24-hour format. Example: 18:00 or 19:00.'],
-    ['Late After (min)',         '15',                 'Minutes after Work Start before a clock-in is late.'],
-    ['Early Leave Grace (min)',  '15',                 'Minutes before Work End that still count as on-time exit.'],
+    ['Work Start Time',          '10:00',              'Legacy only. Clock-in time is flexible.'],
+    ['Work End Time',            '19:00',              'Legacy only. Clock-out time is flexible.'],
+    ['Late After (min)',         '15',                 'Legacy only. Flexible punches are never marked late.'],
+    ['Early Leave Grace (min)',  '15',                 'Legacy only. Flexible punches are never marked early.'],
+    ['Minimum Weekly Hours',     '45',                 'Target hours per employee from Monday to Sunday.'],
     ['Company Name',             'Goolee',             'Shown in the dashboard title.']
   ];
   sheet.getRange(2, 1, rows.length, 3).setValues(rows);
@@ -202,7 +204,8 @@ function ensureSaturdaySettings_(sheet) {
   const missing = [
     ['Saturday Working Day', 'TRUE', 'Saturday is a working day with its own hours. Set FALSE to disable.'],
     ['Saturday Work Start Time', '09:00', '24-hour format. Saturday only.'],
-    ['Saturday Work End Time', '12:00', '24-hour format. Saturday only.']
+    ['Saturday Work End Time', '12:00', '24-hour format. Saturday only.'],
+    ['Minimum Weekly Hours', '45', 'Target hours per employee from Monday to Sunday.']
   ].filter(function (row) { return keys.indexOf(row[0].toLowerCase()) < 0; });
   if (missing.length) {
     sheet.getRange(sheet.getLastRow() + 1, 1, missing.length, 3).setValues(missing);
@@ -307,6 +310,9 @@ function refreshDashboard() {
   const ctx = buildContext_();
   if (!ctx) return;
   paintDashboard_(dash, ctx);
+  // Remove legacy late/early rules from existing spreadsheets. Flexible
+  // punch times are never formatted red; only inaccurate GPS is highlighted.
+  try { highlightLateInAttendanceInternal_(); } catch (e) { console.error('Attendance formatting failed:', e); }
   refreshEmployeeTabs_(ctx);
 }
 
@@ -358,7 +364,7 @@ function clearAllCachesInternal_() {
   cache.remove(CACHE_HOLIDAYS_KEY);
   cache.remove('goolee_employees_cache_v2');
   cache.remove('goolee_employees_full_v2');
-  cache.remove('goolee_settings_api_v1');
+  cache.remove('goolee_settings_api_v2');
 }
 
 function refreshLeaveDropdownInternal_() {
@@ -394,33 +400,12 @@ function highlightLateInAttendanceInternal_() {
   const lastRow = Math.max(sheet.getMaxRows(), 200);
   const range = sheet.getRange(2, 1, lastRow - 1, 7);
 
-  const settings = readSettings_();
-  const lateHour = settings.workStartHour;
-  const lateMin  = settings.workStartMin + settings.lateAfterMin;
-  const endHour  = settings.workEndHour;
-  const endMin   = Math.max(settings.workEndMin - settings.earlyLeaveMin, 0);
-
-  const lateRule = SpreadsheetApp.newConditionalFormatRule()
-    .whenFormulaSatisfied(
-      '=AND($C2="Clock In", TIMEVALUE($G2) > TIME(' + lateHour + ',' + lateMin + ',0))')
-    .setBackground(C.redLight).setFontColor(C.red).setRanges([range]).build();
-
-  const earlyRule = SpreadsheetApp.newConditionalFormatRule()
-    .whenFormulaSatisfied(
-      '=AND($C2="Clock Out", TIMEVALUE($G2) < TIME(' + endHour + ',' + endMin + ',0))')
-    .setBackground(C.redLight).setFontColor(C.red).setRanges([range]).build();
-
-  const overtimeRule = SpreadsheetApp.newConditionalFormatRule()
-    .whenFormulaSatisfied(
-      '=AND($C2="Clock Out", TIMEVALUE($G2) > TIME(' +
-      settings.workEndHour + ',' + settings.workEndMin + ',0))')
-    .setBackground(C.greenLight).setFontColor(C.green).setRanges([range]).build();
-
   const accuracyRule = SpreadsheetApp.newConditionalFormatRule()
     .whenFormulaSatisfied('=AND($E2<>"", $E2 > 100)')
     .setBackground(C.amberLight).setFontColor(C.amber).setRanges([range]).build();
 
-  sheet.setConditionalFormatRules([accuracyRule, overtimeRule, earlyRule, lateRule]);
+  // Clock times are flexible. Only an inaccurate GPS reading is highlighted.
+  sheet.setConditionalFormatRules([accuracyRule]);
 }
 
 // ════════════════════════════════════════════════════════════════════
@@ -453,6 +438,7 @@ function readSettings_() {
     saturdayEndMin:    0,
     lateAfterMin:   DEFAULT_LATE_AFTER_MIN,
     earlyLeaveMin:  DEFAULT_EARLY_LEAVE_MIN,
+    weeklyHoursTarget: DEFAULT_WEEKLY_HOURS_TARGET,
     companyName:    'Goolee'
   };
 
@@ -492,6 +478,8 @@ function readSettings_() {
         const n = Number(val); if (!isNaN(n)) out.lateAfterMin = n;
       } else if (key === 'early leave grace (min)') {
         const n = Number(val); if (!isNaN(n)) out.earlyLeaveMin = n;
+      } else if (key === 'minimum weekly hours' || key === 'weekly hours target') {
+        const n = Number(val); if (!isNaN(n) && n > 0) out.weeklyHoursTarget = n;
       } else if (key === 'company name') {
         out.companyName = val;
       }
@@ -499,6 +487,9 @@ function readSettings_() {
   }
 
   if (out.saturdayWorkingDay) out.workingDays.add('Sat');
+  if (!out.weeklyHoursTarget || out.weeklyHoursTarget <= 0) {
+    out.weeklyHoursTarget = DEFAULT_WEEKLY_HOURS_TARGET;
+  }
 
   const serializable = Object.assign({}, out, {
     workingDays: Array.from(out.workingDays)
@@ -629,7 +620,8 @@ function buildContext_() {
 
   const leaves = readLeaves_();
 
-  // Group by (name, date)
+  // Group by (name, date). A day may contain any number of alternating
+  // Clock In / Clock Out sessions.
   const dailyMap = {};
   for (const p of punches) {
     const dateStr = Utilities.formatDate(p.ts, tz, 'yyyy-MM-dd');
@@ -637,16 +629,12 @@ function buildContext_() {
     if (!dailyMap[key]) {
       dailyMap[key] = {
         name: p.name, date: dateStr,
-        clockIn: null, clockOut: null,
+        actions: [], clockIn: null, clockOut: null,
         leave: null, leaveNote: '', isHoliday: false
       };
     }
     const rec = dailyMap[key];
-    if (p.action === 'Clock In') {
-      if (!rec.clockIn || p.ts < rec.clockIn) rec.clockIn = p.ts;
-    } else if (p.action === 'Clock Out') {
-      if (!rec.clockOut || p.ts > rec.clockOut) rec.clockOut = p.ts;
-    }
+    rec.actions.push({ ts: p.ts, action: p.action });
   }
 
   for (const lv of leaves) {
@@ -654,7 +642,7 @@ function buildContext_() {
     if (!dailyMap[key]) {
       dailyMap[key] = {
         name: lv.name, date: lv.date,
-        clockIn: null, clockOut: null,
+        actions: [], clockIn: null, clockOut: null,
         leave: null, leaveNote: '', isHoliday: false
       };
     }
@@ -662,44 +650,52 @@ function buildContext_() {
     dailyMap[key].leaveNote = lv.notes || '';
   }
 
-  // Per-record computation
+  // Per-record computation. Open sessions on today are counted up to the
+  // refresh time so the weekly monitor reflects work currently in progress.
+  const now = new Date();
+  const todayStr = Utilities.formatDate(now, tz, 'yyyy-MM-dd');
   const dailyList = [];
   for (const k in dailyMap) {
     const rec = dailyMap[k];
-    let hours = 0;
-    if (rec.clockIn && rec.clockOut && rec.clockOut > rec.clockIn) {
-      hours = (rec.clockOut - rec.clockIn) / 3600000;
-    }
-    const isHol = holidaySet.has(rec.date);
-    const late = (rec.clockIn && !rec.leave && !isHol)
-      ? isLate_(rec.clockIn, tz, settings) : false;
+    rec.actions.sort(function (a, b) { return a.ts - b.ts; });
 
-    let leftEarly = false;
-    let earlyMin = 0;
-    let overtimeMin = 0;
-    if (rec.clockOut && !rec.leave && !isHol) {
-      const outH = Number(Utilities.formatDate(rec.clockOut, tz, 'H'));
-      const outM = Number(Utilities.formatDate(rec.clockOut, tz, 'm'));
-      const outMin = outH * 60 + outM;
-      const schedule = dashboardScheduleForDate_(rec.clockOut, tz, settings);
-      const endMin = schedule.workEndHour * 60 + schedule.workEndMin;
-      const earlyThreshold = endMin - schedule.earlyLeaveMin;
-
-      if (outMin < earlyThreshold) {
-        leftEarly = true;
-        earlyMin = endMin - outMin;
-      } else if (outMin > endMin) {
-        overtimeMin = outMin - endMin;
+    let openIn = null;
+    const sessions = [];
+    rec.actions.forEach(function (p) {
+      if (p.action === 'Clock In') {
+        // Consecutive Clock Ins are treated as a new start; valid new data
+        // from the punch page will always alternate.
+        if (openIn) sessions.push({ clockIn: openIn, clockOut: null });
+        openIn = p.ts;
+      } else if (p.action === 'Clock Out' && openIn) {
+        sessions.push({ clockIn: openIn, clockOut: p.ts });
+        openIn = null;
       }
-    }
+    });
+    if (openIn) sessions.push({ clockIn: openIn, clockOut: null });
+
+    const completedSessions = sessions.filter(function (s) { return !!s.clockOut; });
+    rec.clockIn = sessions.length ? sessions[0].clockIn : null;
+    rec.clockOut = completedSessions.length
+      ? completedSessions[completedSessions.length - 1].clockOut : null;
+    rec.openSession = sessions.length && !sessions[sessions.length - 1].clockOut
+      ? sessions[sessions.length - 1] : null;
+
+    let hours = 0;
+    sessions.forEach(function (session) {
+      const isCurrentOpen = session === rec.openSession;
+      const end = session.clockOut || (isCurrentOpen && rec.date === todayStr ? now : null);
+      if (end && end > session.clockIn) hours += (end - session.clockIn) / 3600000;
+    });
+    const isHol = holidaySet.has(rec.date);
 
     dailyList.push({
       name: rec.name, date: rec.date,
       clockIn: rec.clockIn, clockOut: rec.clockOut,
-      hours: hours, late: late,
+      sessions: sessions, sessionCount: sessions.length,
+      openSession: rec.openSession, hours: hours,
       leave: rec.leave, leaveNote: rec.leaveNote,
-      isHoliday: isHol,
-      leftEarly: leftEarly, earlyMin: earlyMin, overtimeMin: overtimeMin
+      isHoliday: isHol
     });
   }
 
@@ -709,18 +705,11 @@ function buildContext_() {
   });
 
   // Today's KPIs
-  const now = new Date();
-  const todayStr = Utilities.formatDate(now, tz, 'yyyy-MM-dd');
   const todayRecords = dailyList.filter(r => r.date === todayStr);
 
   const todayIsHoliday = holidaySet.has(todayStr);
   const presentToday = todayRecords.filter(r => r.clockIn).length;
   const leaveToday   = todayRecords.filter(r => r.leave && !r.clockIn).length;
-  const lateToday    = todayRecords.filter(r => r.late).length;
-  const earlyToday   = todayRecords.filter(r => r.leftEarly).length;
-  const onTimeToday  = presentToday - lateToday;
-  const onTimePct    = presentToday > 0 ? (onTimeToday / presentToday) * 100 : 0;
-  const hoursToday   = todayRecords.reduce((s, r) => s + r.hours, 0);
 
   const workingDaysElapsed = countWorkingDays_(
     now.getFullYear(), now.getMonth(),
@@ -736,40 +725,61 @@ function buildContext_() {
   const holidaysThisMonth = holidays.filter(
     h => h.date >= monthStartStr && h.date <= monthEndStr);
 
-  const monthRecords = dailyList.filter(r => r.date >= monthStartStr);
+  // Weekly totals: Monday–Sunday, built from every completed session.
+  const currentWeekStart = weekStartStr_(todayStr);
+  const weeklyMap = {};
+  dailyList.forEach(function (r) {
+    const weekStart = weekStartStr_(r.date);
+    const key = r.name + '|' + weekStart;
+    if (!weeklyMap[key]) {
+      weeklyMap[key] = {
+        name: r.name, weekStart: weekStart,
+        weekEnd: weekEndStr_(weekStart),
+        totalHours: 0, daysPresent: 0, daysLeave: 0,
+        sessionCount: 0, openSessions: 0
+      };
+    }
+    const w = weeklyMap[key];
+    w.totalHours += r.hours;
+    w.sessionCount += r.sessionCount || 0;
+    if (r.openSession) w.openSessions++;
+    if (r.clockIn) w.daysPresent++;
+    if (r.leave) w.daysLeave++;
+  });
 
-  // Per-employee monthly
+  const weeklyHistory = Object.keys(weeklyMap).map(function (key) {
+    return weeklyMap[key];
+  }).sort(function (a, b) {
+    if (a.weekStart !== b.weekStart) return b.weekStart.localeCompare(a.weekStart);
+    return a.name.localeCompare(b.name);
+  });
+
+  // Per-employee current-week monitoring
   const byEmp = {};
   activeEmployees.forEach(function (name) {
     byEmp[name] = {
-      name: name,
-      daysPresent: 0, daysLeave: 0, daysLate: 0, daysEarly: 0, daysAbsent: 0,
-      totalHours: 0, totalOvertime: 0,
+      name: name, daysPresent: 0, daysLeave: 0,
+      sessionCount: 0, openSessions: 0, totalHours: 0,
+      weekStart: currentWeekStart,
       lastTs: null, lastAction: ''
     };
   });
 
-  monthRecords.forEach(function (r) {
+  dailyList.filter(function (r) { return weekStartStr_(r.date) === currentWeekStart; })
+  .forEach(function (r) {
     if (!byEmp[r.name]) {
       byEmp[r.name] = {
-        name: r.name,
-        daysPresent: 0, daysLeave: 0, daysLate: 0, daysEarly: 0, daysAbsent: 0,
-        totalHours: 0, totalOvertime: 0, lastTs: null, lastAction: ''
+        name: r.name, daysPresent: 0, daysLeave: 0,
+        sessionCount: 0, openSessions: 0, totalHours: 0,
+        weekStart: currentWeekStart, lastTs: null, lastAction: ''
       };
     }
     const e = byEmp[r.name];
     if (r.leave) e.daysLeave++;
     if (r.clockIn) e.daysPresent++;
-    if (r.late) e.daysLate++;
-    if (r.leftEarly) e.daysEarly++;
-    if (r.overtimeMin > 0) e.totalOvertime += r.overtimeMin;
+    e.sessionCount += r.sessionCount || 0;
+    if (r.openSession) e.openSessions++;
     e.totalHours += r.hours;
-  });
-
-  activeEmployees.forEach(function (name) {
-    const e = byEmp[name];
-    if (!e) return;
-    e.daysAbsent = Math.max(workingDaysElapsed - e.daysPresent - e.daysLeave, 0);
   });
 
   punches.forEach(function (p) {
@@ -782,6 +792,9 @@ function buildContext_() {
   });
 
   const employeeRows = activeEmployees.map(n => byEmp[n]).filter(Boolean);
+  const weeklyHoursTotal = employeeRows.reduce(function (sum, employee) {
+    return sum + (Number(employee.totalHours) || 0);
+  }, 0);
 
   // Today per employee
   const todayByEmp = {};
@@ -789,8 +802,7 @@ function buildContext_() {
     todayByEmp[name] = {
       name: name,
       clockIn: null, clockOut: null, hours: 0,
-      late: false, leftEarly: false,
-      earlyMin: 0, overtimeMin: 0,
+      sessions: [], sessionCount: 0, openSession: null,
       leave: null, leaveNote: ''
     };
   });
@@ -799,10 +811,9 @@ function buildContext_() {
       todayByEmp[r.name].clockIn     = r.clockIn;
       todayByEmp[r.name].clockOut    = r.clockOut;
       todayByEmp[r.name].hours       = r.hours;
-      todayByEmp[r.name].late        = r.late;
-      todayByEmp[r.name].leftEarly   = r.leftEarly;
-      todayByEmp[r.name].earlyMin    = r.earlyMin;
-      todayByEmp[r.name].overtimeMin = r.overtimeMin;
+      todayByEmp[r.name].sessions    = r.sessions || [];
+      todayByEmp[r.name].sessionCount = r.sessionCount || 0;
+      todayByEmp[r.name].openSession = r.openSession || null;
       todayByEmp[r.name].leave       = r.leave;
       todayByEmp[r.name].leaveNote   = r.leaveNote;
     }
@@ -828,14 +839,17 @@ function buildContext_() {
     todayIsHoliday: todayIsHoliday,
     workingDaysElapsed: workingDaysElapsed,
     workingDaysTotal: workingDaysTotal,
-    presentToday: presentToday, lateToday: lateToday,
-    leaveToday: leaveToday, earlyToday: earlyToday,
-    onTimePct: onTimePct, hoursToday: hoursToday,
+    presentToday: presentToday,
+    leaveToday: leaveToday,
+    weeklyHoursTotal: weeklyHoursTotal,
     activeCount: activeEmployees.length,
     activeEmployees: activeEmployees,
     todayPerf: todayPerf,
     onLeaveToday: onLeaveToday,
     employeeRows: employeeRows,
+    currentWeekStart: currentWeekStart,
+    currentWeekEnd: weekEndStr_(currentWeekStart),
+    weeklyHistory: weeklyHistory,
     recentDaily: recentDaily,
     empDaily: empDaily,
     byEmp: byEmp
@@ -853,6 +867,29 @@ function countWorkingDays_(year, month, workingDaysSet, holidaySet, tz, upToDate
     if (workingDaysSet.has(dow) && !holidaySet.has(dateStr)) count++;
   }
   return count;
+}
+
+function weekStartStr_(dateStr) {
+  const p = String(dateStr).split('-').map(Number);
+  const utc = new Date(Date.UTC(p[0], p[1] - 1, p[2]));
+  const mondayOffset = (utc.getUTCDay() + 6) % 7;
+  utc.setUTCDate(utc.getUTCDate() - mondayOffset);
+  return utc.getUTCFullYear() + '-' + pad2_(utc.getUTCMonth() + 1) + '-' + pad2_(utc.getUTCDate());
+}
+
+function weekEndStr_(weekStartStr) {
+  const p = String(weekStartStr).split('-').map(Number);
+  const utc = new Date(Date.UTC(p[0], p[1] - 1, p[2]));
+  utc.setUTCDate(utc.getUTCDate() + 6);
+  return utc.getUTCFullYear() + '-' + pad2_(utc.getUTCMonth() + 1) + '-' + pad2_(utc.getUTCDate());
+}
+
+function weekLabel_(weekStart, weekEnd, tz) {
+  // Noon avoids a date rollover when Apps Script and spreadsheet time zones differ.
+  const start = new Date(weekStart + 'T12:00:00');
+  const end = new Date(weekEnd + 'T12:00:00');
+  return Utilities.formatDate(start, tz, 'd MMM') + ' – ' +
+    Utilities.formatDate(end, tz, 'd MMM yyyy');
 }
 
 function readLeaves_() {
@@ -888,50 +925,10 @@ function readLeaves_() {
   return out;
 }
 
-function isLate_(ts, tz, settings) {
-  const h = Number(Utilities.formatDate(ts, tz, 'H'));
-  const m = Number(Utilities.formatDate(ts, tz, 'm'));
-  const minutes = h * 60 + m;
-  const schedule = dashboardScheduleForDate_(ts, tz, settings);
-  const threshold = schedule.workStartHour * 60 + schedule.workStartMin + schedule.lateAfterMin;
-  return minutes > threshold;
-}
-
-function dashboardScheduleForDate_(date, tz, settings) {
-  const day = Utilities.formatDate(date, tz, 'EEE');
-  if (day === 'Sat' && settings.saturdayWorkingDay) {
-    return {
-      workStartHour: settings.saturdayStartHour,
-      workStartMin: settings.saturdayStartMin,
-      workEndHour: settings.saturdayEndHour,
-      workEndMin: settings.saturdayEndMin,
-      lateAfterMin: settings.lateAfterMin,
-      earlyLeaveMin: settings.earlyLeaveMin
-    };
-  }
-  return settings;
-}
-
 // ════════════════════════════════════════════════════════════════════
 //  FORMATTERS
 // ════════════════════════════════════════════════════════════════════
 function pad2_(n) { return (n < 10 ? '0' : '') + n; }
-
-function formatTimeLabel_(h, m) {
-  const period = h >= 12 ? 'PM' : 'AM';
-  const h12 = h % 12 || 12;
-  return h12 + ':' + pad2_(m) + ' ' + period;
-}
-
-function formatDuration_(mins) {
-  mins = Math.round(mins);
-  if (mins <= 0) return '0m';
-  const h = Math.floor(mins / 60);
-  const m = mins % 60;
-  if (h === 0) return m + 'm';
-  if (m === 0) return h + 'h';
-  return h + 'h ' + m + 'm';
-}
 
 function formatHoursMinutes_(hours) {
   const total = Math.round(hours * 60);
@@ -942,9 +939,42 @@ function formatHoursMinutes_(hours) {
   return h + 'h ' + m + 'm';
 }
 
+function formatSessionTimes_(sessions, tz, field) {
+  if (!sessions || !sessions.length) return '—';
+  const values = sessions.map(function (session) {
+    return session[field] ? Utilities.formatDate(session[field], tz, 'h:mm a') : null;
+  }).filter(Boolean);
+  return values.length ? values.join(' · ') : '—';
+}
+
 // ════════════════════════════════════════════════════════════════════
 //  TODAY'S STATUS BUILDER
 // ════════════════════════════════════════════════════════════════════
+function dailyStatusFor_(rec) {
+  if (rec.isHoliday) return { text: HOLIDAY_COLOR.icon + ' Holiday', colors: HOLIDAY_COLOR };
+  if (rec.leave) {
+    const col = leaveColor_(rec.leave);
+    return { text: col.icon + ' ' + rec.leave, colors: col };
+  }
+  if (rec.openSession) {
+    return {
+      text: '⏱️ Working · ' + formatHoursMinutes_(rec.hours),
+      colors: { bg: C.greenLight, fg: C.green }
+    };
+  }
+  if (rec.clockOut) {
+    return {
+      text: '✅ Completed · ' + formatHoursMinutes_(rec.hours) +
+        (rec.sessionCount > 1 ? ' · ' + rec.sessionCount + ' sessions' : ''),
+      colors: { bg: C.greenLight, fg: C.green }
+    };
+  }
+  if (rec.clockIn) {
+    return { text: '🟢 Punch recorded', colors: { bg: C.blueLight, fg: C.blue } };
+  }
+  return { text: '—', colors: { bg: C.grayLight, fg: C.gray } };
+}
+
 function todayStatusFor_(emp, ctx) {
   if (ctx.todayIsHoliday) {
     return { text: '🎉 Holiday', bg: HOLIDAY_COLOR.bg, fg: HOLIDAY_COLOR.fg };
@@ -952,7 +982,7 @@ function todayStatusFor_(emp, ctx) {
   if (emp.leave) {
     const col = leaveColor_(emp.leave);
     let text = col.icon + ' ' + emp.leave;
-    if (emp.clockIn && !emp.clockOut) {
+    if (emp.openSession) {
       text += ' · ⏱️ Working';
     } else if (emp.clockIn && emp.clockOut) {
       text += ' · 🏁 ' + formatHoursMinutes_(emp.hours) + ' worked';
@@ -962,38 +992,20 @@ function todayStatusFor_(emp, ctx) {
   if (!emp.clockIn) {
     return { text: '⏳ Not yet in', bg: C.grayLight, fg: C.gray };
   }
-  if (!emp.clockOut) {
-    if (emp.late) return { text: '⏰ Late · Working', bg: C.redLight, fg: C.red };
-    return { text: '✅ On Time · Working', bg: C.greenLight, fg: C.green };
-  }
-  if (emp.late && emp.leftEarly) {
+  if (emp.openSession) {
     return {
-      text: '⏰🚪 Late + Left Early · ' + formatDuration_(emp.earlyMin),
-      bg: C.redLight, fg: C.red
-    };
-  }
-  if (emp.late && emp.overtimeMin > 0) {
-    return {
-      text: '⏰➕ Late + Overtime · +' + formatDuration_(emp.overtimeMin),
-      bg: C.amberLight, fg: C.amber
-    };
-  }
-  if (emp.late) {
-    return { text: '⏰ Late', bg: C.redLight, fg: C.red };
-  }
-  if (emp.leftEarly) {
-    return {
-      text: '🚪 Left Early · ' + formatDuration_(emp.earlyMin),
-      bg: C.redLight, fg: C.red
-    };
-  }
-  if (emp.overtimeMin > 0) {
-    return {
-      text: '➕ Overtime · +' + formatDuration_(emp.overtimeMin),
+      text: '⏱️ Working · ' + formatHoursMinutes_(emp.hours),
       bg: C.greenLight, fg: C.green
     };
   }
-  return { text: '🏁 Completed · On Time', bg: C.greenLight, fg: C.green };
+  if (!emp.clockOut) {
+    return { text: '🟢 Punch recorded', bg: C.blueLight, fg: C.blue };
+  }
+  return {
+    text: '🏁 Completed · ' + formatHoursMinutes_(emp.hours) +
+      (emp.sessionCount > 1 ? ' · ' + emp.sessionCount + ' sessions' : ''),
+    bg: C.greenLight, fg: C.green
+  };
 }
 
 // ════════════════════════════════════════════════════════════════════
@@ -1029,13 +1041,14 @@ function paintDashboard_(dash, ctx) {
   dash.getCharts().forEach(function (ch) { dash.removeChart(ch); });
   dash.clearConditionalFormatRules();
 
+  const requiredRows = 250 + ctx.weeklyHistory.length;
+  if (dash.getMaxRows() < requiredRows) {
+    dash.insertRowsAfter(dash.getMaxRows(), requiredRows - dash.getMaxRows());
+  }
+
   resetDashboard_(dash);
 
   const s = ctx.settings;
-  const startLabel = formatTimeLabel_(s.workStartHour, s.workStartMin);
-  const endLabel   = formatTimeLabel_(s.workEndHour,   s.workEndMin);
-  const lateLabel  = formatTimeLabel_(s.workStartHour, s.workStartMin + s.lateAfterMin);
-  const earlyLabel = formatTimeLabel_(s.workEndHour,   Math.max(s.workEndMin - s.earlyLeaveMin, 0));
 
   let r = 1;
 
@@ -1075,13 +1088,10 @@ function paintDashboard_(dash, ctx) {
       bg: C.grayLight, fg: C.gray },
     { label: '✅  PRESENT', value: ctx.presentToday + ' / ' + ctx.activeCount,
       bg: C.greenLight, fg: C.green },
-    { label: '⏰  LATE',
-      value: ctx.lateToday + (ctx.presentToday > 0 ? '  (' + Math.round(100 - ctx.onTimePct) + '%)' : ''),
-      bg: ctx.lateToday > 0 ? C.redLight : C.greenLight,
-      fg: ctx.lateToday > 0 ? C.red : C.green },
-    { label: '🚪  LEFT EARLY', value: String(ctx.earlyToday),
-      bg: ctx.earlyToday > 0 ? C.redLight : C.greenLight,
-      fg: ctx.earlyToday > 0 ? C.red : C.green },
+    { label: '⏱️  HOURS THIS WEEK', value: formatHoursMinutes_(ctx.weeklyHoursTotal),
+      bg: C.blueLight, fg: C.blue },
+    { label: '🎯  WEEKLY TARGET', value: (Number(s.weeklyHoursTarget) || DEFAULT_WEEKLY_HOURS_TARGET) + ' h',
+      bg: C.amberLight, fg: C.amber },
     { label: '🌴  ON LEAVE', value: String(ctx.leaveToday),
       bg: ctx.leaveToday > 0 ? C.tealLight : C.grayLight,
       fg: ctx.leaveToday > 0 ? C.teal : C.gray },
@@ -1154,8 +1164,8 @@ function paintDashboard_(dash, ctx) {
     ctx.todayPerf.forEach(function (emp, i) {
       dash.setRowHeight(r, 34);
 
-      const ci = emp.clockIn ? Utilities.formatDate(emp.clockIn, ctx.tz, 'h:mm a') : '—';
-      const co = emp.clockOut ? Utilities.formatDate(emp.clockOut, ctx.tz, 'h:mm a') : '—';
+       const ci = formatSessionTimes_(emp.sessions, ctx.tz, 'clockIn');
+       const co = formatSessionTimes_(emp.sessions, ctx.tz, 'clockOut');
       const hoursLabel = emp.hours > 0 ? formatHoursMinutes_(emp.hours) : '—';
       const leaveLabel = emp.leave
         ? leaveColor_(emp.leave).icon + ' ' + emp.leave : '—';
@@ -1187,10 +1197,6 @@ function paintDashboard_(dash, ctx) {
       dash.getRange(r, 6)
         .setBackground(status.bg).setFontColor(status.fg)
         .setFontWeight('bold').setHorizontalAlignment('center');
-
-      if (emp.late)         dash.getRange(r, 2).setFontColor(C.red).setFontWeight('bold');
-      if (emp.leftEarly)    dash.getRange(r, 3).setFontColor(C.red).setFontWeight('bold');
-      if (emp.overtimeMin > 0) dash.getRange(r, 3).setFontColor(C.green).setFontWeight('bold');
 
       r++;
     });
@@ -1248,10 +1254,11 @@ function paintDashboard_(dash, ctx) {
     r++;
   }
 
-  // EMPLOYEE PERFORMANCE — THIS MONTH
+  // EMPLOYEE PERFORMANCE — THIS WEEK
   dash.setRowHeight(r, 40);
   dash.getRange(r, 1, 1, DASH_TOTAL_COLS).merge()
-    .setValue('🏢  EMPLOYEE PERFORMANCE — THIS MONTH')
+    .setValue('🏢  EMPLOYEE WEEKLY MONITORING — ' +
+      weekLabel_(ctx.currentWeekStart, ctx.currentWeekEnd, ctx.tz))
     .setBackground(C.teal).setFontColor(C.white)
     .setFontSize(14).setFontWeight('bold')
     .setHorizontalAlignment('left').setVerticalAlignment('middle');
@@ -1259,8 +1266,8 @@ function paintDashboard_(dash, ctx) {
 
   dash.setRowHeight(r, 34);
   dash.getRange(r, 1, 1, DASH_TOTAL_COLS).setValues([[
-    'EMPLOYEE', 'PRESENT', 'LEAVE', 'LATE', 'EARLY', 'ABSENT',
-    'ON TIME %', 'TOTAL HOURS', 'OVERTIME', 'LAST ACTION', 'LAST PUNCH', ''
+    'EMPLOYEE', 'HOURS THIS WEEK', 'TARGET', 'REMAINING', 'SESSIONS',
+    'DAYS WORKED', 'OPEN SESSIONS', 'STATUS', 'LAST ACTION', 'LAST PUNCH', '', ''
   ]]);
   dash.getRange(r, 1, 1, DASH_TOTAL_COLS)
     .setBackground(C.grayLight).setFontColor(C.tealDark)
@@ -1282,19 +1289,22 @@ function paintDashboard_(dash, ctx) {
     ctx.employeeRows.forEach(function (emp, i) {
       dash.setRowHeight(r, 34);
 
-      const onTimePct = emp.daysPresent > 0
-        ? ((emp.daysPresent - emp.daysLate) / emp.daysPresent) : 0;
       const totalHours = Number(emp.totalHours) || 0;
-      const overtimeHours = (Number(emp.totalOvertime) || 0) / 60;
+      const targetHours = Number(s.weeklyHoursTarget) || DEFAULT_WEEKLY_HOURS_TARGET;
+      const remainingHours = Math.max(targetHours - totalHours, 0);
+      const statusText = totalHours >= targetHours
+        ? '✅ Target met'
+        : '⏳ ' + formatHoursMinutes_(remainingHours) + ' remaining';
       const lastAction = emp.lastAction || '—';
       const lastPunch = emp.lastTs
         ? Utilities.formatDate(emp.lastTs, ctx.tz, 'd MMM · h:mm a')
         : '—';
 
       dash.getRange(r, 1, 1, DASH_TOTAL_COLS).setValues([[
-        emp.name, emp.daysPresent, emp.daysLeave, emp.daysLate, emp.daysEarly,
-        emp.daysAbsent, onTimePct, totalHours, overtimeHours,
-        lastAction, lastPunch, ''
+        emp.name, formatHoursMinutes_(totalHours), targetHours + ' h',
+        formatHoursMinutes_(remainingHours), emp.sessionCount || 0,
+        emp.daysPresent || 0, emp.openSessions || 0, statusText,
+        lastAction, lastPunch, '', ''
       ]]);
 
       const altBg = (i % 2 === 0) ? C.white : C.grayLight;
@@ -1303,30 +1313,68 @@ function paintDashboard_(dash, ctx) {
         .setVerticalAlignment('middle')
         .setBorder(true, true, true, true, null, null, C.border, SpreadsheetApp.BorderStyle.SOLID);
 
-      dash.getRange(r, 7).setNumberFormat('0%');
-      dash.getRange(r, 8).setNumberFormat('0.00');
-      dash.getRange(r, 9).setNumberFormat('0.00');
-
       dash.getRange(r, 1).setHorizontalAlignment('left')
         .setFontWeight('bold').setFontColor(C.tealDark);
-      dash.getRange(r, 2, 1, 8).setHorizontalAlignment('center');
-      dash.getRange(r, 10, 1, 2).setFontColor(C.gray).setFontSize(10)
+      dash.getRange(r, 2, 1, 7).setHorizontalAlignment('center');
+      dash.getRange(r, 9, 1, 2).setFontColor(C.gray).setFontSize(10)
         .setHorizontalAlignment('center');
 
-      if (emp.daysLeave > 0)  dash.getRange(r, 3).setFontColor(C.teal).setFontWeight('bold');
-      if (emp.daysLate > 0)   dash.getRange(r, 4).setFontColor(C.red).setFontWeight('bold');
-      if (emp.daysEarly > 0)  dash.getRange(r, 5).setFontColor(C.red).setFontWeight('bold');
-      if (emp.daysAbsent > 0) dash.getRange(r, 6).setFontColor(C.red).setFontWeight('bold');
-      else                    dash.getRange(r, 6).setFontColor(C.green).setFontWeight('bold');
-      if (overtimeHours > 0)  dash.getRange(r, 9).setFontColor(C.green).setFontWeight('bold');
-
-      const otCell = dash.getRange(r, 7);
-      if (onTimePct >= 0.9) otCell.setFontColor(C.green).setFontWeight('bold');
-      else if (onTimePct > 0 && onTimePct < 0.7) otCell.setFontColor(C.red).setFontWeight('bold');
+      dash.getRange(r, 8).setBackground(totalHours >= targetHours ? C.greenLight : C.amberLight)
+        .setFontColor(totalHours >= targetHours ? C.green : C.amber)
+        .setFontWeight('bold').setHorizontalAlignment('center');
 
       r++;
     });
   }
+
+  dash.setRowHeight(r, 14);
+  r++;
+
+  // WEEKLY HISTORY
+  dash.setRowHeight(r, 40);
+  dash.getRange(r, 1, 1, DASH_TOTAL_COLS).merge()
+    .setValue('📈  WEEKLY HOURS HISTORY')
+    .setBackground(C.blue).setFontColor(C.white)
+    .setFontSize(14).setFontWeight('bold')
+    .setHorizontalAlignment('left').setVerticalAlignment('middle');
+  r++;
+
+  dash.setRowHeight(r, 34);
+  dash.getRange(r, 1, 1, DASH_TOTAL_COLS).setValues([[
+    'WEEK', 'EMPLOYEE', 'TOTAL HOURS', 'TARGET', 'REMAINING', 'SESSIONS',
+    'DAYS WORKED', 'OPEN SESSIONS', 'STATUS', '', '', ''
+  ]]);
+  dash.getRange(r, 1, 1, DASH_TOTAL_COLS)
+    .setBackground(C.grayLight).setFontColor(C.tealDark)
+    .setFontSize(10).setFontWeight('bold')
+    .setHorizontalAlignment('center').setVerticalAlignment('middle')
+    .setBorder(true, true, true, true, null, null, C.border, SpreadsheetApp.BorderStyle.SOLID);
+  r++;
+
+  ctx.weeklyHistory.forEach(function (week, i) {
+    const target = Number(s.weeklyHoursTarget) || DEFAULT_WEEKLY_HOURS_TARGET;
+    const remaining = Math.max(target - week.totalHours, 0);
+    const met = week.totalHours >= target;
+    dash.setRowHeight(r, 32);
+    dash.getRange(r, 1, 1, DASH_TOTAL_COLS).setValues([[
+      weekLabel_(week.weekStart, week.weekEnd, ctx.tz), week.name,
+      formatHoursMinutes_(week.totalHours), target + ' h',
+      formatHoursMinutes_(remaining), week.sessionCount, week.daysPresent,
+      week.openSessions, met ? '✅ Target met' : '⏳ ' + formatHoursMinutes_(remaining) + ' remaining',
+      '', '', ''
+    ]]);
+    dash.getRange(r, 1, 1, DASH_TOTAL_COLS)
+      .setBackground(i % 2 === 0 ? C.white : C.grayLight).setFontSize(11)
+      .setVerticalAlignment('middle')
+      .setBorder(true, true, true, true, null, null, C.border, SpreadsheetApp.BorderStyle.SOLID);
+    dash.getRange(r, 1).setFontColor(C.blue).setFontWeight('bold').setHorizontalAlignment('center');
+    dash.getRange(r, 2).setFontColor(C.tealDark).setFontWeight('bold');
+    dash.getRange(r, 3, 1, 6).setHorizontalAlignment('center');
+    dash.getRange(r, 9).setBackground(met ? C.greenLight : C.amberLight)
+      .setFontColor(met ? C.green : C.amber).setFontWeight('bold')
+      .setHorizontalAlignment('center');
+    r++;
+  });
 
   dash.setRowHeight(r, 14);
   r++;
@@ -1408,41 +1456,14 @@ function paintDashboard_(dash, ctx) {
       const parts = rec.date.split('-');
       const d = new Date(Number(parts[0]), Number(parts[1]) - 1, Number(parts[2]));
       const dateLabel = Utilities.formatDate(d, ctx.tz, 'EEE, d MMM');
-      const ci = rec.clockIn  ? Utilities.formatDate(rec.clockIn,  ctx.tz, 'h:mm a') : '—';
-      const co = rec.clockOut ? Utilities.formatDate(rec.clockOut, ctx.tz, 'h:mm a') : '—';
+       const ci = formatSessionTimes_(rec.sessions, ctx.tz, 'clockIn');
+       const co = formatSessionTimes_(rec.sessions, ctx.tz, 'clockOut');
       let hoursLabel = '—';
       if (rec.hours > 0) hoursLabel = formatHoursMinutes_(rec.hours);
 
-      let statusText, statusColors;
-      if (rec.isHoliday) {
-        statusText = HOLIDAY_COLOR.icon + ' Holiday';
-        statusColors = HOLIDAY_COLOR;
-      } else if (rec.leave) {
-        const col = leaveColor_(rec.leave);
-        statusText = col.icon + ' ' + rec.leave;
-        statusColors = col;
-      } else if (rec.late && rec.leftEarly) {
-        statusText = '⏰🚪 Late + Left Early · ' + formatDuration_(rec.earlyMin);
-        statusColors = { bg: C.redLight, fg: C.red };
-      } else if (rec.late && rec.overtimeMin > 0) {
-        statusText = '⏰➕ Late + Overtime · +' + formatDuration_(rec.overtimeMin);
-        statusColors = { bg: C.amberLight, fg: C.amber };
-      } else if (rec.late) {
-        statusText = '⏰ Late';
-        statusColors = { bg: C.redLight, fg: C.red };
-      } else if (rec.leftEarly) {
-        statusText = '🚪 Left Early · ' + formatDuration_(rec.earlyMin);
-        statusColors = { bg: C.redLight, fg: C.red };
-      } else if (rec.overtimeMin > 0) {
-        statusText = '➕ Overtime · +' + formatDuration_(rec.overtimeMin);
-        statusColors = { bg: C.greenLight, fg: C.green };
-      } else if (rec.clockIn) {
-        statusText = '✅ On Time';
-        statusColors = { bg: C.greenLight, fg: C.green };
-      } else {
-        statusText = '—';
-        statusColors = { bg: C.grayLight, fg: C.gray };
-      }
+      const dailyStatus = dailyStatusFor_(rec);
+      const statusText = dailyStatus.text;
+      const statusColors = dailyStatus.colors;
 
       dash.getRange(r, 1, 1, 6).setValues([[
         dateLabel, rec.name, ci, co, hoursLabel, statusText
@@ -1462,10 +1483,6 @@ function paintDashboard_(dash, ctx) {
         .setFontColor(statusColors.fg).setFontWeight('bold')
         .setHorizontalAlignment('center');
 
-      if (rec.late)          dash.getRange(r, 3).setFontColor(C.red).setFontWeight('bold');
-      if (rec.leftEarly)     dash.getRange(r, 4).setFontColor(C.red).setFontWeight('bold');
-      if (rec.overtimeMin > 0) dash.getRange(r, 4).setFontColor(C.green).setFontWeight('bold');
-
       r++;
     });
   }
@@ -1477,11 +1494,9 @@ function paintDashboard_(dash, ctx) {
   dash.setRowHeight(r, 30);
   dash.getRange(r, 1, 1, DASH_TOTAL_COLS).merge()
     .setValue(
-      '⚙️  Working days: ' + Array.from(s.workingDays).join(', ') +
-      '  ·  Work hours: ' + startLabel + ' – ' + endLabel +
-      '  ·  Late after ' + lateLabel +
-      '  ·  Early before ' + earlyLabel +
-      '  ·  Holidays and approved leave are excluded'
+      '⚙️  Flexible clock-in/out · ' +
+      'Weekly target: ' + (Number(s.weeklyHoursTarget) || DEFAULT_WEEKLY_HOURS_TARGET) + ' hours · ' +
+      'Week runs Monday–Sunday · Holidays and approved leave are shown separately'
     )
     .setFontColor(C.gray).setFontSize(10).setFontStyle('italic')
     .setHorizontalAlignment('center').setVerticalAlignment('middle');
@@ -1544,20 +1559,26 @@ function refreshEmployeeTabs_(ctx) {
 function paintEmployeeTab_(sheet, empName, ctx) {
   sheet.getCharts().forEach(function (ch) { sheet.removeChart(ch); });
 
+  const employeeHistoryCount = ctx.weeklyHistory.filter(function (w) { return w.name === empName; }).length;
+  const employeeDailyCount = ctx.empDaily.filter(function (r) { return r.name === empName; }).length;
+  const requiredRows = 80 + employeeHistoryCount + employeeDailyCount;
+  if (sheet.getMaxRows() < requiredRows) {
+    sheet.insertRowsAfter(sheet.getMaxRows(), requiredRows - sheet.getMaxRows());
+  }
+
   const maxR0 = Math.max(sheet.getMaxRows(), 200);
   const maxC0 = Math.max(sheet.getMaxColumns(), 12);
   try { sheet.getRange(1, 1, maxR0, maxC0).breakApart(); } catch (e) {}
   sheet.getRange(1, 1, maxR0, maxC0).clear();
 
   const emp = ctx.byEmp[empName] || {
-    daysPresent: 0, daysLeave: 0, daysLate: 0, daysEarly: 0, daysAbsent: 0,
-    totalHours: 0, totalOvertime: 0, lastTs: null, lastAction: ''
+    daysPresent: 0, daysLeave: 0, sessionCount: 0, openSessions: 0,
+    totalHours: 0, lastTs: null, lastAction: ''
   };
 
-  const onTimePct = emp.daysPresent > 0
-    ? ((emp.daysPresent - emp.daysLate) / emp.daysPresent) : 0;
-  const avgHours = emp.daysPresent > 0 ? emp.totalHours / emp.daysPresent : 0;
-  const overtimeHours = (Number(emp.totalOvertime) || 0) / 60;
+  const weeklyTarget = Number(ctx.settings.weeklyHoursTarget) || DEFAULT_WEEKLY_HOURS_TARGET;
+  const weeklyRemaining = Math.max(weeklyTarget - (Number(emp.totalHours) || 0), 0);
+  const personalWeeks = ctx.weeklyHistory.filter(function (w) { return w.name === empName; });
   const personalDaily = ctx.empDaily.filter(function (r) { return r.name === empName; });
 
   const TOTAL_COLS = 6;
@@ -1569,7 +1590,7 @@ function paintEmployeeTab_(sheet, empName, ctx) {
 
   sheet.setRowHeight(r, 72);
   sheet.getRange(r, 1, 1, TOTAL_COLS).merge()
-    .setValue('👤  ' + empName + ' — Personal Attendance')
+    .setValue('👤  ' + empName + ' — Personal Attendance & Weekly Monitoring')
     .setBackground(C.tealDark).setFontColor(C.white)
     .setFontSize(20).setFontWeight('bold')
     .setHorizontalAlignment('left').setVerticalAlignment('middle');
@@ -1589,7 +1610,7 @@ function paintEmployeeTab_(sheet, empName, ctx) {
 
   sheet.setRowHeight(r, 40);
   sheet.getRange(r, 1, 1, TOTAL_COLS).merge()
-    .setValue('📊  THIS MONTH')
+    .setValue('📊  THIS WEEK — ' + weekLabel_(ctx.currentWeekStart, ctx.currentWeekEnd, ctx.tz))
     .setBackground(C.teal).setFontColor(C.white)
     .setFontSize(14).setFontWeight('bold')
     .setHorizontalAlignment('left').setVerticalAlignment('middle');
@@ -1597,7 +1618,7 @@ function paintEmployeeTab_(sheet, empName, ctx) {
 
   sheet.setRowHeight(r, 34);
   sheet.getRange(r, 1, 1, TOTAL_COLS).setValues([[
-    'DAYS PRESENT', 'DAYS LATE', 'DAYS EARLY', 'DAYS LEAVE', 'TOTAL HOURS', 'OVERTIME'
+    'DAYS WORKED', 'DAYS LEAVE', 'SESSIONS', 'OPEN SESSIONS', 'TOTAL HOURS', 'REMAINING'
   ]]);
   sheet.getRange(r, 1, 1, TOTAL_COLS)
     .setBackground(C.grayLight).setFontColor(C.tealDark)
@@ -1608,30 +1629,30 @@ function paintEmployeeTab_(sheet, empName, ctx) {
 
   sheet.setRowHeight(r, 52);
   sheet.getRange(r, 1, 1, TOTAL_COLS).setValues([[
-    emp.daysPresent, emp.daysLate, emp.daysEarly, emp.daysLeave,
-    Number(emp.totalHours) || 0, overtimeHours
+    emp.daysPresent, emp.daysLeave, emp.sessionCount || 0, emp.openSessions || 0,
+    formatHoursMinutes_(Number(emp.totalHours) || 0), formatHoursMinutes_(weeklyRemaining)
   ]]);
   sheet.getRange(r, 1, 1, TOTAL_COLS)
     .setFontSize(18).setFontWeight('bold').setFontColor(C.ink)
     .setHorizontalAlignment('center').setVerticalAlignment('middle')
     .setBorder(true, true, true, true, null, null, C.border, SpreadsheetApp.BorderStyle.SOLID);
 
-  sheet.getRange(r, 5, 1, 2).setNumberFormat('0.00');
   sheet.getRange(r, 1, 1, TOTAL_COLS).setBackgrounds([[
-    C.greenLight, C.greenLight, C.greenLight, C.greenLight, C.amberLight, C.greenLight
+    C.greenLight, C.greenLight, C.greenLight, C.greenLight,
+    Number(emp.totalHours) >= weeklyTarget ? C.greenLight : C.amberLight,
+    Number(emp.totalHours) >= weeklyTarget ? C.greenLight : C.amberLight
   ]]);
 
-  if (emp.daysLate > 0)  sheet.getRange(r, 2).setBackground(C.redLight).setFontColor(C.red);
-  if (emp.daysEarly > 0) sheet.getRange(r, 3).setBackground(C.redLight).setFontColor(C.red);
   if (emp.daysLeave > 0) sheet.getRange(r, 4).setBackground(C.tealLight).setFontColor(C.teal);
-  if (overtimeHours > 0) sheet.getRange(r, 6).setBackground(C.greenLight).setFontColor(C.green);
   r++;
 
   sheet.setRowHeight(r, 30);
   sheet.getRange(r, 1, 1, TOTAL_COLS).merge()
     .setValue(
-      'On-time rate: ' + Math.round(onTimePct * 100) + '%' +
-      '   ·   Avg hours/day: ' + avgHours.toFixed(1) + ' h' +
+      'Weekly target: ' + weeklyTarget + ' h' +
+      '   ·   ' + (Number(emp.totalHours) >= weeklyTarget
+        ? 'Target met' : formatHoursMinutes_(weeklyRemaining) + ' remaining') +
+      '   ·   Sessions this week: ' + (emp.sessionCount || 0) +
       '   ·   Last action: ' + (emp.lastAction || '—') +
       (emp.lastTs
         ? '  (' + Utilities.formatDate(emp.lastTs, ctx.tz, 'd MMM · h:mm a') + ')'
@@ -1641,6 +1662,50 @@ function paintEmployeeTab_(sheet, empName, ctx) {
     .setHorizontalAlignment('center').setVerticalAlignment('middle')
     .setBackground(C.grayLight);
   r++;
+
+  sheet.setRowHeight(r, 14);
+  r++;
+
+  // Weekly history for this employee
+  sheet.setRowHeight(r, 40);
+  sheet.getRange(r, 1, 1, TOTAL_COLS).merge()
+    .setValue('📈  WEEKLY HOURS HISTORY')
+    .setBackground(C.blue).setFontColor(C.white)
+    .setFontSize(14).setFontWeight('bold')
+    .setHorizontalAlignment('left').setVerticalAlignment('middle');
+  r++;
+
+  sheet.setRowHeight(r, 34);
+  sheet.getRange(r, 1, 1, TOTAL_COLS).setValues([[
+    'WEEK', 'TOTAL HOURS', 'TARGET', 'REMAINING', 'SESSIONS', 'STATUS'
+  ]]);
+  sheet.getRange(r, 1, 1, TOTAL_COLS)
+    .setBackground(C.grayLight).setFontColor(C.tealDark)
+    .setFontSize(10).setFontWeight('bold')
+    .setHorizontalAlignment('center').setVerticalAlignment('middle')
+    .setBorder(true, true, true, true, null, null, C.border, SpreadsheetApp.BorderStyle.SOLID);
+  r++;
+
+  personalWeeks.forEach(function (week, i) {
+    const met = week.totalHours >= weeklyTarget;
+    const remaining = Math.max(weeklyTarget - week.totalHours, 0);
+    sheet.setRowHeight(r, 32);
+    sheet.getRange(r, 1, 1, TOTAL_COLS).setValues([[
+      weekLabel_(week.weekStart, week.weekEnd, ctx.tz),
+      formatHoursMinutes_(week.totalHours), weeklyTarget + ' h',
+      formatHoursMinutes_(remaining), week.sessionCount,
+      met ? '✅ Target met' : '⏳ ' + formatHoursMinutes_(remaining) + ' remaining'
+    ]]);
+    sheet.getRange(r, 1, 1, TOTAL_COLS)
+      .setBackground(i % 2 === 0 ? C.white : C.grayLight).setFontSize(11)
+      .setVerticalAlignment('middle')
+      .setBorder(true, true, true, true, null, null, C.border, SpreadsheetApp.BorderStyle.SOLID);
+    sheet.getRange(r, 1).setFontColor(C.blue).setFontWeight('bold').setHorizontalAlignment('center');
+    sheet.getRange(r, 2, 1, 4).setHorizontalAlignment('center');
+    sheet.getRange(r, 6).setBackground(met ? C.greenLight : C.amberLight)
+      .setFontColor(met ? C.green : C.amber).setFontWeight('bold').setHorizontalAlignment('center');
+    r++;
+  });
 
   sheet.setRowHeight(r, 14);
   r++;
@@ -1681,41 +1746,14 @@ function paintEmployeeTab_(sheet, empName, ctx) {
       const parts = rec.date.split('-');
       const d = new Date(Number(parts[0]), Number(parts[1]) - 1, Number(parts[2]));
       const dateLabel = Utilities.formatDate(d, ctx.tz, 'EEE, d MMM');
-      const ci = rec.clockIn  ? Utilities.formatDate(rec.clockIn,  ctx.tz, 'h:mm a') : '—';
-      const co = rec.clockOut ? Utilities.formatDate(rec.clockOut, ctx.tz, 'h:mm a') : '—';
+      const ci = formatSessionTimes_(rec.sessions, ctx.tz, 'clockIn');
+      const co = formatSessionTimes_(rec.sessions, ctx.tz, 'clockOut');
       let hoursLabel = '—';
       if (rec.hours > 0) hoursLabel = formatHoursMinutes_(rec.hours);
 
-      let statusText, statusColors;
-      if (rec.isHoliday) {
-        statusText = HOLIDAY_COLOR.icon + ' Holiday';
-        statusColors = HOLIDAY_COLOR;
-      } else if (rec.leave) {
-        const col = leaveColor_(rec.leave);
-        statusText = col.icon + ' ' + rec.leave;
-        statusColors = col;
-      } else if (rec.late && rec.leftEarly) {
-        statusText = '⏰🚪 Late + Left Early · ' + formatDuration_(rec.earlyMin);
-        statusColors = { bg: C.redLight, fg: C.red };
-      } else if (rec.late && rec.overtimeMin > 0) {
-        statusText = '⏰➕ Late + Overtime · +' + formatDuration_(rec.overtimeMin);
-        statusColors = { bg: C.amberLight, fg: C.amber };
-      } else if (rec.late) {
-        statusText = '⏰ Late';
-        statusColors = { bg: C.redLight, fg: C.red };
-      } else if (rec.leftEarly) {
-        statusText = '🚪 Left Early · ' + formatDuration_(rec.earlyMin);
-        statusColors = { bg: C.redLight, fg: C.red };
-      } else if (rec.overtimeMin > 0) {
-        statusText = '➕ Overtime · +' + formatDuration_(rec.overtimeMin);
-        statusColors = { bg: C.greenLight, fg: C.green };
-      } else if (rec.clockIn) {
-        statusText = '✅ On Time';
-        statusColors = { bg: C.greenLight, fg: C.green };
-      } else {
-        statusText = '—';
-        statusColors = { bg: C.grayLight, fg: C.gray };
-      }
+      const dailyStatus = dailyStatusFor_(rec);
+      const statusText = dailyStatus.text;
+      const statusColors = dailyStatus.colors;
 
       sheet.getRange(r, 1, 1, 6).setValues([[
         dateLabel, ci, co, hoursLabel, statusText, ''
@@ -1732,10 +1770,6 @@ function paintEmployeeTab_(sheet, empName, ctx) {
       sheet.getRange(r, 5).setBackground(statusColors.bg)
         .setFontColor(statusColors.fg).setFontWeight('bold').setHorizontalAlignment('center');
 
-      if (rec.late)          sheet.getRange(r, 2).setFontColor(C.red).setFontWeight('bold');
-      if (rec.leftEarly)     sheet.getRange(r, 3).setFontColor(C.red).setFontWeight('bold');
-      if (rec.overtimeMin > 0) sheet.getRange(r, 3).setFontColor(C.green).setFontWeight('bold');
-
       r++;
     });
   }
@@ -1746,20 +1780,14 @@ function paintEmployeeTab_(sheet, empName, ctx) {
   sheet.setRowHeight(r, 30);
   sheet.getRange(r, 1, 1, TOTAL_COLS).merge()
     .setValue(
-      '⚙️  Work hours: ' +
-      formatTimeLabel_(ctx.settings.workStartHour, ctx.settings.workStartMin) + ' – ' +
-      formatTimeLabel_(ctx.settings.workEndHour, ctx.settings.workEndMin) +
-      '   ·   Late after ' +
-      formatTimeLabel_(ctx.settings.workStartHour,
-        ctx.settings.workStartMin + ctx.settings.lateAfterMin) +
-      '   ·   Early before ' +
-      formatTimeLabel_(ctx.settings.workEndHour,
-        Math.max(ctx.settings.workEndMin - ctx.settings.earlyLeaveMin, 0))
+      '⚙️  Flexible clock-in/out · Weekly target: ' +
+      (Number(ctx.settings.weeklyHoursTarget) || DEFAULT_WEEKLY_HOURS_TARGET) +
+      ' hours · Week runs Monday–Sunday'
     )
     .setFontColor(C.gray).setFontSize(10).setFontStyle('italic')
     .setHorizontalAlignment('center').setVerticalAlignment('middle');
 
-  sheet.setTabColor((emp.daysLate > 0 || emp.daysEarly > 0) ? C.red : C.teal);
+  sheet.setTabColor(Number(emp.totalHours) >= weeklyTarget ? C.green : C.teal);
 }
 
 function sanitizeTabName_(name) {

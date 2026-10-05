@@ -32,9 +32,9 @@ WHAT YOU GET
 
 - GPS-verified punches — clock in/out only works within 100 m accuracy
 - PIN protection — 4-digit PIN per employee (SHA-256 hashed over the wire)
-- One punch per day — prevents duplicate clock-ins or clock-outs
-- Auto-calculated status — On Time, Late, Left Early, Overtime
-- Live dashboard — today's snapshot, monthly performance, daily log
+- Flexible sessions — workers can clock in/out repeatedly using alternating sessions
+- Weekly target monitoring — each worker is measured against 45 hours per Monday–Sunday week
+- Live dashboard — today's snapshot, weekly performance, weekly history, daily log
 - Leave tracking — MC, Emergency, Annual, Unpaid
 - Public holidays — excluded from working-day calculations
 - Per-employee tabs — auto-generated personal attendance sheets
@@ -239,7 +239,7 @@ DAILY USE
 For Employees
 1. Open the site
 2. Wait for the green bar
-3. Pick name → enter PIN → tap Clock In (morning) or Clock Out (evening)
+3. Pick name → enter PIN → tap Clock In or Clock Out at any time. Repeat for each work session.
 
 For HR
 - See today: Open Dashboard tab — snapshot at top
@@ -257,10 +257,8 @@ CONFIGURATION REFERENCE
 
 Settings Sheet
 - Working Days: Mon,Tue,Wed,Thu,Fri (supports Mon-Fri ranges)
-- Work Start Time: 10:00 (24-hour format)
-- Work End Time: 19:00 (24-hour format)
-- Late After (min): 15
-- Early Leave Grace (min): 15
+- Minimum Weekly Hours: 45 (target from Monday through Sunday)
+- Work Start/End, Late After, and Early Leave settings are retained for compatibility but do not mark flexible punches red.
 - Company Name: Goolee
 
 Frontend Constants (index.html)
@@ -312,7 +310,7 @@ Frontend
 - "Location not accurate enough" → Step outside / near a window. Wait 10 s. Tap Retry.
 - "Could not reach the attendance server" → Check API_URL in index.html. Test with ?action=ping.
 - "Wrong PIN" → 5 tries allowed, then 5-minute lockout. Ask HR to reset.
-- "Already Clocked In" → One clock-in per day. Contact HR to correct.
+- "Already Clocked In" → The current work session is still open. Clock Out before starting another session.
 - Buttons stay grey → GPS is still locating. Wait for the green bar.
 - Names won't load → Deployment must be set to Who has access: Anyone.
 

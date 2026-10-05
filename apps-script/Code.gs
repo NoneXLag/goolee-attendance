@@ -4,8 +4,8 @@
  * • Reads all settings from the Settings sheet
  * • Exposes GET ?action=settings and ?action=employees
  * • Handles punches with GPS + PIN verification
- * • Prevents duplicate punches on the same day
- * • Computes early-leave / overtime on clock-out
+ * • Allows multiple alternating work sessions in one day
+ * • Tracks weekly hours against the configurable weekly target
  * • Auto-refreshes the dashboard ~5s after every punch
  *
  * Duplicate-punch detection now reads the REAL timestamp in column A
@@ -90,8 +90,9 @@ function getSettings_() {
     saturdayStartMin:  0,
     saturdayEndHour:   12,
     saturdayEndMin:    0,
-    lateAfterMin:   15,
-    earlyLeaveMin:  15,
+    lateAfterMin:   15, // legacy setting; no longer used for attendance status
+    earlyLeaveMin:  15, // legacy setting; no longer used for attendance status
+    weeklyHoursTarget: 45,
     companyName:    'Goolee'
   };
 
@@ -129,6 +130,8 @@ function getSettings_() {
           out.lateAfterMin = parseInt(val, 10) || 15;
         } else if (key === 'early leave grace (min)') {
           out.earlyLeaveMin = parseInt(val, 10) || 15;
+        } else if (key === 'minimum weekly hours' || key === 'weekly hours target') {
+          out.weeklyHoursTarget = Number(val) || 45;
         } else if (key === 'company name') {
           out.companyName = val;
         }
@@ -142,6 +145,7 @@ function getSettings_() {
   if (isNaN(out.workStartMin))  out.workStartMin  = 0;
   if (isNaN(out.workEndHour))   out.workEndHour   = 19;
   if (isNaN(out.workEndMin))    out.workEndMin    = 0;
+  if (isNaN(out.weeklyHoursTarget) || out.weeklyHoursTarget <= 0) out.weeklyHoursTarget = 45;
   if (isNaN(out.saturdayStartHour)) out.saturdayStartHour = 9;
   if (isNaN(out.saturdayStartMin))  out.saturdayStartMin  = 0;
   if (isNaN(out.saturdayEndHour))   out.saturdayEndHour   = 12;
@@ -277,7 +281,7 @@ function clearFailure_(name) {
 }
 
 // ═══════════════════════════════════════════════════════════════════════
-// Duplicate punch check — reads the REAL timestamp in column A.
+// Current-session check — reads the REAL timestamp in column A.
 // Do NOT trust column F (the date string). Sheets silently re-types it
 // as a Date and the value can drift across timezone boundaries, which
 // caused "already clocked in" to trigger on a fresh day.
@@ -285,7 +289,7 @@ function clearFailure_(name) {
 function getTodayPunches_(employeeName, tz) {
   const sheet = sheet_(ATTENDANCE_TAB);
   const lastRow = sheet.getLastRow();
-  if (lastRow < 2) return { hasIn: false, hasOut: false, inTime: null, outTime: null };
+  if (lastRow < 2) return { hasOpenSession: false, inTime: null, outTime: null, lastAction: null };
 
   const todayStr = Utilities.formatDate(new Date(), tz, 'yyyy-MM-dd');
 
@@ -293,7 +297,7 @@ function getTodayPunches_(employeeName, tz) {
   const startRow = lastRow - lookback + 1;
   const values = sheet.getRange(startRow, 1, lookback, 7).getValues();
 
-  let hasIn = false, hasOut = false, inTime = null, outTime = null;
+  let hasOpenSession = false, inTime = null, outTime = null, lastAction = null;
 
   for (let i = 0; i < values.length; i++) {
     const row = values[i];
@@ -308,15 +312,17 @@ function getTodayPunches_(employeeName, tz) {
     const rowDateStr = Utilities.formatDate(ts, tz, 'yyyy-MM-dd');
     if (rowDateStr !== todayStr) continue;
 
-    if (action === 'Clock In') {
-      hasIn = true;
-      if (!inTime) inTime = Utilities.formatDate(ts, tz, 'h:mm a');
-    } else if (action === 'Clock Out') {
-      hasOut = true;
-      if (!outTime) outTime = Utilities.formatDate(ts, tz, 'h:mm a');
+    if (action === 'Clock In' && !hasOpenSession) {
+      hasOpenSession = true;
+      inTime = Utilities.formatDate(ts, tz, 'h:mm a');
+      lastAction = action;
+    } else if (action === 'Clock Out' && hasOpenSession) {
+      hasOpenSession = false;
+      outTime = Utilities.formatDate(ts, tz, 'h:mm a');
+      lastAction = action;
     }
   }
-  return { hasIn, hasOut, inTime, outTime };
+  return { hasOpenSession, inTime, outTime, lastAction };
 }
 
 // ═══════════════════════════════════════════════════════════════════════
@@ -361,29 +367,21 @@ function handlePunch_(body) {
   const dateStr = Utilities.formatDate(now, tz, 'yyyy-MM-dd');
   const timeStr = Utilities.formatDate(now, tz, 'HH:mm:ss');
 
-  // ── Duplicate check now reads column A only (see getTodayPunches_) ──
+  // ── Allow repeated sessions, but require an alternating In → Out sequence. ──
   const existing = getTodayPunches_(employee.name, tz);
 
-  if (punchType === 'Clock In' && existing.hasIn) {
+  if (punchType === 'Clock In' && existing.hasOpenSession) {
     return {
       ok: false,
       reason: 'already_clocked_in',
-      message: 'You have already clocked in today at ' + (existing.inTime || 'earlier') + '.',
+      message: 'You are currently clocked in since ' + (existing.inTime || 'earlier') + '. Clock Out before starting another session.',
       existingTime: existing.inTime
     };
   }
   if (punchType === 'Clock Out') {
-    if (!existing.hasIn) {
+    if (!existing.hasOpenSession) {
       return { ok: false, reason: 'no_clock_in',
-               message: "You haven't clocked in today yet. Please Clock In first." };
-    }
-    if (existing.hasOut) {
-      return {
-        ok: false,
-        reason: 'already_clocked_out',
-        message: 'You have already clocked out today at ' + (existing.outTime || 'earlier') + '.',
-        existingTime: existing.outTime
-      };
+               message: "You do not have an open work session. Please Clock In first." };
     }
   }
 
@@ -400,31 +398,10 @@ function handlePunch_(body) {
     timeStr
   ]]);
 
-  // ── Early / overtime calculation for Clock Out ──
+  // ── Time is flexible. Weekly hours are calculated by the dashboard. ──
   const settings = getSettings_();
   let punchStatus = 'normal';
   let statusLabel = '';
-  let overtimeMinutes = 0;
-  let earlyMinutes = 0;
-
-  if (punchType === 'Clock Out') {
-    const nowH = Number(Utilities.formatDate(now, tz, 'H'));
-    const nowM = Number(Utilities.formatDate(now, tz, 'm'));
-    const nowMin = nowH * 60 + nowM;
-    const schedule = apiScheduleForDate_(now, tz, settings);
-    const endMin = schedule.workEndHour * 60 + schedule.workEndMin;
-    const earlyThreshold = endMin - schedule.earlyLeaveMin;
-
-    if (nowMin > endMin) {
-      overtimeMinutes = nowMin - endMin;
-      punchStatus = 'overtime';
-      statusLabel = formatDuration_(overtimeMinutes);
-    } else if (nowMin < earlyThreshold) {
-      earlyMinutes = endMin - nowMin;
-      punchStatus = 'early';
-      statusLabel = formatDuration_(earlyMinutes);
-    }
-  }
 
   SpreadsheetApp.flush();
   try { scheduleDashboardRefresh(); } catch (e) { console.error('schedule failed:', e); }
@@ -439,12 +416,9 @@ function handlePunch_(body) {
     accuracy: accuracy,
     punchStatus: punchStatus,
     statusLabel: statusLabel,
-    overtimeMinutes: overtimeMinutes,
-    earlyMinutes: earlyMinutes,
-    workEndLabel: formatTimeLabel_(
-      apiScheduleForDate_(now, tz, settings).workEndHour,
-      apiScheduleForDate_(now, tz, settings).workEndMin
-    )
+    overtimeMinutes: 0,
+    earlyMinutes: 0,
+    weeklyHoursTarget: settings.weeklyHoursTarget
   };
 }
 

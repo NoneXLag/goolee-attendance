@@ -21,7 +21,7 @@ const EMPLOYEES_TAB  = 'Employees';
 const ATTENDANCE_TAB = 'Attendance';
 
 // ── Rules ──
-const ACCURACY_MAX_M      = 100;
+const ACCURACY_MAX_M      = 200;
 const PIN_LOCKOUT_TRIES   = 5;
 const PIN_LOCKOUT_MINUTES = 5;
 

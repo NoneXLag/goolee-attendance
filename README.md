@@ -30,7 +30,7 @@ TABLE OF CONTENTS
 WHAT YOU GET
 ------------
 
-- GPS-verified punches — clock in/out only works within 100 m accuracy
+- GPS-verified punches — clock in/out only works within 200 m accuracy
 - PIN protection — 4-digit PIN per employee (SHA-256 hashed over the wire)
 - Flexible sessions — workers can clock in/out repeatedly using alternating sessions
 - Weekly target monitoring — each worker is measured against 45 hours per Monday–Sunday week
@@ -266,7 +266,7 @@ Inside the <script> block:
 
 const CONFIG = {
   API_URL: "...",              // your Apps Script deployment URL
-  ACCURACY_MAX_M: 100,         // max GPS accuracy in metres
+  ACCURACY_MAX_M: 200,         // max GPS accuracy in metres
   GPS_TIMEOUT_MS: 15000,       // how long to wait for a GPS lock
   GPS_RETRIES: 3,              // retries on poor accuracy
   GPS_RETRY_DELAY_MS: 2000,    // delay between retries
@@ -276,7 +276,7 @@ const CONFIG = {
 };
 
 Backend Constants (Code.gs)
-const ACCURACY_MAX_M      = 100;   // must match frontend
+const ACCURACY_MAX_M      = 200;   // must match frontend
 const PIN_LOCKOUT_TRIES   = 5;
 const PIN_LOCKOUT_MINUTES = 5;
 
@@ -340,7 +340,7 @@ SECURITY & PRIVACY NOTES
 - PINs are stored in plain text in the Employees sheet. Anyone with Sheet access can read them. This is fine for internal use but do not reuse important PINs.
 - The Apps Script deployment is public (Anyone). This is required for the frontend to reach it. Security relies on:
   - Employee name + PIN match
-  - GPS accuracy ≤ 100 m
+  - GPS accuracy ≤ 200 m
   - One punch per day per employee
   - 5-try lockout per employee
 - Location is only captured at the moment of a punch, not tracked continuously.

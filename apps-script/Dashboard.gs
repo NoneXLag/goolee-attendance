@@ -401,7 +401,7 @@ function highlightLateInAttendanceInternal_() {
   const range = sheet.getRange(2, 1, lastRow - 1, 7);
 
   const accuracyRule = SpreadsheetApp.newConditionalFormatRule()
-    .whenFormulaSatisfied('=AND($E2<>"", $E2 > 100)')
+    .whenFormulaSatisfied('=AND($E2<>"", $E2 > 200)')
     .setBackground(C.amberLight).setFontColor(C.amber).setRanges([range]).build();
 
   // Clock times are flexible. Only an inaccurate GPS reading is highlighted.
@@ -792,9 +792,12 @@ function buildContext_() {
   });
 
   const employeeRows = activeEmployees.map(n => byEmp[n]).filter(Boolean);
-  const weeklyHoursTotal = employeeRows.reduce(function (sum, employee) {
-    return sum + (Number(employee.totalHours) || 0);
-  }, 0);
+  const weeklyTarget = Number(settings.weeklyHoursTarget) || DEFAULT_WEEKLY_HOURS_TARGET;
+  const weeklyCompletedCount = employeeRows.filter(function (employee) {
+    return (Number(employee.totalHours) || 0) >= weeklyTarget;
+  }).length;
+  const weeklyAchievementPct = employeeRows.length > 0
+    ? Math.round((weeklyCompletedCount / employeeRows.length) * 100) : 0;
 
   // Today per employee
   const todayByEmp = {};
@@ -841,7 +844,8 @@ function buildContext_() {
     workingDaysTotal: workingDaysTotal,
     presentToday: presentToday,
     leaveToday: leaveToday,
-    weeklyHoursTotal: weeklyHoursTotal,
+    weeklyCompletedCount: weeklyCompletedCount,
+    weeklyAchievementPct: weeklyAchievementPct,
     activeCount: activeEmployees.length,
     activeEmployees: activeEmployees,
     todayPerf: todayPerf,
@@ -1088,10 +1092,12 @@ function paintDashboard_(dash, ctx) {
       bg: C.grayLight, fg: C.gray },
     { label: '✅  PRESENT', value: ctx.presentToday + ' / ' + ctx.activeCount,
       bg: C.greenLight, fg: C.green },
-    { label: '⏱️  HOURS THIS WEEK', value: formatHoursMinutes_(ctx.weeklyHoursTotal),
-      bg: C.blueLight, fg: C.blue },
-    { label: '🎯  WEEKLY TARGET', value: (Number(s.weeklyHoursTarget) || DEFAULT_WEEKLY_HOURS_TARGET) + ' h',
-      bg: C.amberLight, fg: C.amber },
+    { label: '✅  PEOPLE COMPLETE', value: ctx.weeklyCompletedCount + ' / ' + ctx.activeCount,
+      bg: ctx.weeklyCompletedCount > 0 ? C.greenLight : C.grayLight,
+      fg: ctx.weeklyCompletedCount > 0 ? C.green : C.gray },
+    { label: '🎯  ACHIEVED', value: ctx.weeklyAchievementPct + '%',
+      bg: ctx.weeklyAchievementPct >= 100 ? C.greenLight : C.amberLight,
+      fg: ctx.weeklyAchievementPct >= 100 ? C.green : C.amber },
     { label: '🌴  ON LEAVE', value: String(ctx.leaveToday),
       bg: ctx.leaveToday > 0 ? C.tealLight : C.grayLight,
       fg: ctx.leaveToday > 0 ? C.teal : C.gray },

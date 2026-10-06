@@ -1561,9 +1561,15 @@
         } else if (res.reason === 'bad_gps') {
           const actualAccuracy = currentPosition && currentPosition.accuracy != null
             ? Math.round(currentPosition.accuracy) : null;
-          inlineText = actualAccuracy != null
-            ? 'Your phone reports GPS accuracy of ' + actualAccuracy + ' m. The limit is ' + CONFIG.ACCURACY_MAX_M + ' m. Move outdoors and try again.'
-            : (res.message || 'GPS accuracy was not available. Move outdoors and try again.');
+          const hasCoordinates = currentPosition &&
+            isFinite(Number(currentPosition.lat)) && isFinite(Number(currentPosition.lng));
+          if (actualAccuracy != null && actualAccuracy <= CONFIG.ACCURACY_MAX_M && hasCoordinates) {
+            inlineText = 'Your GPS reading is within the ' + CONFIG.ACCURACY_MAX_M + ' m limit, but the deployed server rejected it. Redeploy the latest Apps Script version and try again.';
+          } else {
+            inlineText = actualAccuracy != null
+              ? 'Your phone reports GPS accuracy of ' + actualAccuracy + ' m. The limit is ' + CONFIG.ACCURACY_MAX_M + ' m. Move outdoors and try again.'
+              : (res.message || 'GPS accuracy was not available. Move outdoors and try again.');
+          }
         }
         showFormError(inlineText);
 

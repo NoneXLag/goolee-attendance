@@ -28,7 +28,7 @@ const PIN_LOCKOUT_MINUTES = 5;
 // ── Cache keys (API-specific, prefixed to avoid Dashboard.gs clashes) ──
 const CACHE_EMPLOYEES_KEY      = 'goolee_employees_cache_v2';
 const CACHE_EMPLOYEES_FULL_KEY = 'goolee_employees_full_v2';
-const API_CACHE_SETTINGS_KEY   = 'goolee_settings_api_v2';
+const API_CACHE_SETTINGS_KEY   = 'goolee_settings_api_v3';
 const CACHE_EMPLOYEES_TTL      = 600;   // 10 min
 const API_CACHE_SETTINGS_TTL   = 600;   // 10 min
 
@@ -82,14 +82,14 @@ function getSettings_() {
   const out = {
     workingDays:    'Mon,Tue,Wed,Thu,Fri',
     saturdayWorkingDay: true,
-    workStartHour:  10,
-    workStartMin:   0,
-    workEndHour:    19,
-    workEndMin:     0,
-    saturdayStartHour: 9,
-    saturdayStartMin:  0,
-    saturdayEndHour:   12,
-    saturdayEndMin:    0,
+    workStartHour:  null,
+    workStartMin:   null,
+    workEndHour:    null,
+    workEndMin:     null,
+    saturdayStartHour: null,
+    saturdayStartMin:  null,
+    saturdayEndHour:   null,
+    saturdayEndMin:    null,
     lateAfterMin:   15, // legacy setting; no longer used for attendance status
     earlyLeaveMin:  15, // legacy setting; no longer used for attendance status
     weeklyHoursTarget: 45,
@@ -112,20 +112,28 @@ function getSettings_() {
           out.saturdayWorkingDay = /^(true|yes|1)$/i.test(val);
         } else if (key === 'work start time') {
           const parts = val.split(':');
-          out.workStartHour = parseInt(parts[0], 10);
-          out.workStartMin  = parseInt(parts[1] || '0', 10);
+          const hour = Number(parts[0]);
+          const minute = Number(parts[1] || 0);
+          if (!isNaN(hour)) out.workStartHour = hour;
+          if (!isNaN(minute)) out.workStartMin = minute;
         } else if (key === 'work end time') {
           const parts = val.split(':');
-          out.workEndHour = parseInt(parts[0], 10);
-          out.workEndMin  = parseInt(parts[1] || '0', 10);
+          const hour = Number(parts[0]);
+          const minute = Number(parts[1] || 0);
+          if (!isNaN(hour)) out.workEndHour = hour;
+          if (!isNaN(minute)) out.workEndMin = minute;
         } else if (key === 'saturday work start time') {
           const parts = val.split(':');
-          out.saturdayStartHour = parseInt(parts[0], 10);
-          out.saturdayStartMin  = parseInt(parts[1] || '0', 10);
+          const hour = Number(parts[0]);
+          const minute = Number(parts[1] || 0);
+          if (!isNaN(hour)) out.saturdayStartHour = hour;
+          if (!isNaN(minute)) out.saturdayStartMin = minute;
         } else if (key === 'saturday work end time') {
           const parts = val.split(':');
-          out.saturdayEndHour = parseInt(parts[0], 10);
-          out.saturdayEndMin  = parseInt(parts[1] || '0', 10);
+          const hour = Number(parts[0]);
+          const minute = Number(parts[1] || 0);
+          if (!isNaN(hour)) out.saturdayEndHour = hour;
+          if (!isNaN(minute)) out.saturdayEndMin = minute;
         } else if (key === 'late after (min)') {
           out.lateAfterMin = parseInt(val, 10) || 15;
         } else if (key === 'early leave grace (min)') {
@@ -141,15 +149,7 @@ function getSettings_() {
     console.error('Failed to read settings:', e);
   }
 
-  if (isNaN(out.workStartHour)) out.workStartHour = 10;
-  if (isNaN(out.workStartMin))  out.workStartMin  = 0;
-  if (isNaN(out.workEndHour))   out.workEndHour   = 19;
-  if (isNaN(out.workEndMin))    out.workEndMin    = 0;
   if (isNaN(out.weeklyHoursTarget) || out.weeklyHoursTarget <= 0) out.weeklyHoursTarget = 45;
-  if (isNaN(out.saturdayStartHour)) out.saturdayStartHour = 9;
-  if (isNaN(out.saturdayStartMin))  out.saturdayStartMin  = 0;
-  if (isNaN(out.saturdayEndHour))   out.saturdayEndHour   = 12;
-  if (isNaN(out.saturdayEndMin))    out.saturdayEndMin    = 0;
   if (out.saturdayWorkingDay && !/\bSat\b/i.test(out.workingDays)) {
     out.workingDays += ',Sat';
   }
@@ -291,38 +291,41 @@ function getTodayPunches_(employeeName, tz) {
   const lastRow = sheet.getLastRow();
   if (lastRow < 2) return { hasOpenSession: false, inTime: null, outTime: null, lastAction: null };
 
-  const todayStr = Utilities.formatDate(new Date(), tz, 'yyyy-MM-dd');
-
-  const lookback = Math.min(lastRow - 1, 1000);
-  const startRow = lastRow - lookback + 1;
-  const values = sheet.getRange(startRow, 1, lookback, 7).getValues();
-
-  let hasOpenSession = false, inTime = null, outTime = null, lastAction = null;
-
-  for (let i = 0; i < values.length; i++) {
-    const row = values[i];
-    const ts      = row[0];                       // column A — the real Date
+  // Read the employee's complete punch history. A work session can cross
+  // midnight, so filtering rows to today's date would incorrectly reset it.
+  const values = sheet.getRange(2, 1, lastRow - 1, 7).getValues();
+  const events = [];
+  values.forEach(function (row) {
+    const ts = row[0];
     const rowName = String(row[1] || '').trim();
-    const action  = String(row[2] || '').trim();
-
-    if (rowName !== employeeName) continue;
-    if (!(ts instanceof Date)) continue;          // skip malformed rows
-
-    // Format the row's own timestamp in the sheet TZ — never trust column F
-    const rowDateStr = Utilities.formatDate(ts, tz, 'yyyy-MM-dd');
-    if (rowDateStr !== todayStr) continue;
-
-    if (action === 'Clock In' && !hasOpenSession) {
-      hasOpenSession = true;
-      inTime = Utilities.formatDate(ts, tz, 'h:mm a');
-      lastAction = action;
-    } else if (action === 'Clock Out' && hasOpenSession) {
-      hasOpenSession = false;
-      outTime = Utilities.formatDate(ts, tz, 'h:mm a');
-      lastAction = action;
+    const action = String(row[2] || '').trim();
+    if (rowName === employeeName && ts instanceof Date &&
+        (action === 'Clock In' || action === 'Clock Out')) {
+      events.push({ ts: ts, action: action });
     }
-  }
-  return { hasOpenSession, inTime, outTime, lastAction };
+  });
+  events.sort(function (a, b) { return a.ts - b.ts; });
+
+  let openIn = null;
+  let lastOut = null;
+  let lastAction = null;
+  events.forEach(function (event) {
+    if (event.action === 'Clock In') {
+      openIn = event.ts;
+      lastAction = event.action;
+    } else if (event.action === 'Clock Out' && openIn) {
+      openIn = null;
+      lastOut = event.ts;
+      lastAction = event.action;
+    }
+  });
+
+  return {
+    hasOpenSession: !!openIn,
+    inTime: openIn ? Utilities.formatDate(openIn, tz, 'EEE, d MMM h:mm a') : null,
+    outTime: lastOut ? Utilities.formatDate(lastOut, tz, 'EEE, d MMM h:mm a') : null,
+    lastAction: lastAction
+  };
 }
 
 // ═══════════════════════════════════════════════════════════════════════

@@ -32,7 +32,7 @@ WHAT YOU GET
 
 - GPS-verified punches — clock in/out only works within 200 m accuracy
 - PIN protection — 4-digit PIN per employee (SHA-256 hashed over the wire)
-- Flexible sessions — workers can clock in/out repeatedly using alternating sessions
+- Flexible sessions — workers can clock in/out repeatedly using alternating sessions, including overnight sessions that cross midnight
 - Weekly target monitoring — each worker is measured against 45 hours per Monday–Sunday week
 - Live dashboard — today's snapshot, weekly performance, weekly history, daily log
 - Leave tracking — MC, Emergency, Annual, Unpaid
@@ -310,7 +310,7 @@ Frontend
 - "Location not accurate enough" → Step outside / near a window. Wait 10 s. Tap Retry.
 - "Could not reach the attendance server" → Check API_URL in index.html. Test with ?action=ping.
 - "Wrong PIN" → 5 tries allowed, then 5-minute lockout. Ask HR to reset.
-- "Already Clocked In" → The current work session is still open. Clock Out before starting another session.
+- "Already Clocked In" → The current work session is still open, including a session started before midnight. Clock Out before starting another session.
 - Buttons stay grey → GPS is still locating. Wait for the green bar.
 - Names won't load → Deployment must be set to Who has access: Anyone.
 

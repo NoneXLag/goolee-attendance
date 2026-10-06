@@ -18,10 +18,10 @@ const SHEET_HOLIDAYS   = 'Holidays';
 
 // ── Defaults ──
 const DEFAULT_WORKING_DAYS     = 'Mon,Tue,Wed,Thu,Fri';
-const DEFAULT_WORK_START_HOUR  = 10;
-const DEFAULT_WORK_START_MIN   = 0;
-const DEFAULT_WORK_END_HOUR    = 19;
-const DEFAULT_WORK_END_MIN     = 0;
+const DEFAULT_WORK_START_HOUR  = null;
+const DEFAULT_WORK_START_MIN   = null;
+const DEFAULT_WORK_END_HOUR    = null;
+const DEFAULT_WORK_END_MIN     = null;
 const DEFAULT_LATE_AFTER_MIN   = 15;
 const DEFAULT_EARLY_LEAVE_MIN  = 15;
 const DEFAULT_WEEKLY_HOURS_TARGET = 45;
@@ -30,7 +30,7 @@ const LOG_DAYS_BACK     = 14;
 const EMP_LOG_DAYS_BACK = 30;
 
 // ── Cache keys ──
-const CACHE_SETTINGS_KEY = 'goolee_settings_v3';
+const CACHE_SETTINGS_KEY = 'goolee_settings_v4';
 const CACHE_HOLIDAYS_KEY = 'goolee_holidays_v2';
 const CACHE_CONFIG_TTL   = 1800;
 
@@ -364,7 +364,7 @@ function clearAllCachesInternal_() {
   cache.remove(CACHE_HOLIDAYS_KEY);
   cache.remove('goolee_employees_cache_v2');
   cache.remove('goolee_employees_full_v2');
-  cache.remove('goolee_settings_api_v2');
+  cache.remove('goolee_settings_api_v3');
 }
 
 function refreshLeaveDropdownInternal_() {
@@ -620,82 +620,72 @@ function buildContext_() {
 
   const leaves = readLeaves_();
 
-  // Group by (name, date). A day may contain any number of alternating
-  // Clock In / Clock Out sessions.
+  // Create daily records from punches and leave. Sessions are paired globally
+  // by employee so a Clock In before midnight can close after midnight.
   const dailyMap = {};
-  for (const p of punches) {
+  punches.forEach(function (p) {
     const dateStr = Utilities.formatDate(p.ts, tz, 'yyyy-MM-dd');
     const key = p.name + '|' + dateStr;
-    if (!dailyMap[key]) {
-      dailyMap[key] = {
-        name: p.name, date: dateStr,
-        actions: [], clockIn: null, clockOut: null,
-        leave: null, leaveNote: '', isHoliday: false
-      };
-    }
-    const rec = dailyMap[key];
-    rec.actions.push({ ts: p.ts, action: p.action });
-  }
+    if (!dailyMap[key]) dailyMap[key] = createDailyRecord_(p.name, dateStr);
+  });
 
-  for (const lv of leaves) {
+  leaves.forEach(function (lv) {
     const key = lv.name + '|' + lv.date;
-    if (!dailyMap[key]) {
-      dailyMap[key] = {
-        name: lv.name, date: lv.date,
-        actions: [], clockIn: null, clockOut: null,
-        leave: null, leaveNote: '', isHoliday: false
-      };
-    }
+    if (!dailyMap[key]) dailyMap[key] = createDailyRecord_(lv.name, lv.date);
     dailyMap[key].leave = lv.type;
     dailyMap[key].leaveNote = lv.notes || '';
-  }
+  });
 
-  // Per-record computation. Open sessions on today are counted up to the
-  // refresh time so the weekly monitor reflects work currently in progress.
   const now = new Date();
   const todayStr = Utilities.formatDate(now, tz, 'yyyy-MM-dd');
+  const sessionsByEmployee = buildSessionsByEmployee_(punches);
+
+  Object.keys(sessionsByEmployee).forEach(function (employeeName) {
+    sessionsByEmployee[employeeName].forEach(function (session) {
+      const end = session.clockOut || now;
+      if (!end || end <= session.clockIn) return;
+
+      let cursor = session.clockIn;
+      while (cursor < end) {
+        const dateStr = Utilities.formatDate(cursor, tz, 'yyyy-MM-dd');
+        const nextDay = startOfDateInTimeZone_(dateStringAddDays_(dateStr, 1), tz);
+        const segmentEnd = end < nextDay ? end : nextDay;
+        const key = employeeName + '|' + dateStr;
+        if (!dailyMap[key]) dailyMap[key] = createDailyRecord_(employeeName, dateStr);
+
+        const rec = dailyMap[key];
+        const segment = {
+          clockIn: session.clockIn,
+          clockOut: session.clockOut,
+          hours: (segmentEnd - cursor) / 3600000
+        };
+        rec.sessions.push(segment);
+        rec.hours += segment.hours;
+        if (dateStr === Utilities.formatDate(session.clockIn, tz, 'yyyy-MM-dd')) {
+          rec.sessionCount++;
+        }
+        if (!rec.clockIn || session.clockIn < rec.clockIn) rec.clockIn = session.clockIn;
+        if (session.clockOut && (!rec.clockOut || session.clockOut > rec.clockOut)) {
+          rec.clockOut = session.clockOut;
+        }
+        if (!session.clockOut && segmentEnd >= end) rec.openSession = segment;
+
+        cursor = segmentEnd;
+      }
+    });
+  });
+
   const dailyList = [];
   for (const k in dailyMap) {
     const rec = dailyMap[k];
-    rec.actions.sort(function (a, b) { return a.ts - b.ts; });
-
-    let openIn = null;
-    const sessions = [];
-    rec.actions.forEach(function (p) {
-      if (p.action === 'Clock In') {
-        // Consecutive Clock Ins are treated as a new start; valid new data
-        // from the punch page will always alternate.
-        if (openIn) sessions.push({ clockIn: openIn, clockOut: null });
-        openIn = p.ts;
-      } else if (p.action === 'Clock Out' && openIn) {
-        sessions.push({ clockIn: openIn, clockOut: p.ts });
-        openIn = null;
-      }
-    });
-    if (openIn) sessions.push({ clockIn: openIn, clockOut: null });
-
-    const completedSessions = sessions.filter(function (s) { return !!s.clockOut; });
-    rec.clockIn = sessions.length ? sessions[0].clockIn : null;
-    rec.clockOut = completedSessions.length
-      ? completedSessions[completedSessions.length - 1].clockOut : null;
-    rec.openSession = sessions.length && !sessions[sessions.length - 1].clockOut
-      ? sessions[sessions.length - 1] : null;
-
-    let hours = 0;
-    sessions.forEach(function (session) {
-      const isCurrentOpen = session === rec.openSession;
-      const end = session.clockOut || (isCurrentOpen && rec.date === todayStr ? now : null);
-      if (end && end > session.clockIn) hours += (end - session.clockIn) / 3600000;
-    });
-    const isHol = holidaySet.has(rec.date);
-
+    rec.isHoliday = holidaySet.has(rec.date);
     dailyList.push({
       name: rec.name, date: rec.date,
       clockIn: rec.clockIn, clockOut: rec.clockOut,
-      sessions: sessions, sessionCount: sessions.length,
-      openSession: rec.openSession, hours: hours,
+      sessions: rec.sessions, sessionCount: rec.sessionCount,
+      openSession: rec.openSession, hours: rec.hours,
       leave: rec.leave, leaveNote: rec.leaveNote,
-      isHoliday: isHol
+      isHoliday: rec.isHoliday
     });
   }
 
@@ -708,15 +698,9 @@ function buildContext_() {
   const todayRecords = dailyList.filter(r => r.date === todayStr);
 
   const todayIsHoliday = holidaySet.has(todayStr);
-  const presentToday = todayRecords.filter(r => r.clockIn).length;
+  const onlineToday = todayRecords.filter(r => r.openSession).length;
   const leaveToday   = todayRecords.filter(r => r.leave && !r.clockIn).length;
-
-  const workingDaysElapsed = countWorkingDays_(
-    now.getFullYear(), now.getMonth(),
-    settings.workingDays, holidaySet, tz, now);
-  const workingDaysTotal = countWorkingDays_(
-    now.getFullYear(), now.getMonth(),
-    settings.workingDays, holidaySet, tz, null);
+  const offlineToday = Math.max(activeEmployees.length - onlineToday - leaveToday, 0);
 
   const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
   const monthStartStr = Utilities.formatDate(monthStart, tz, 'yyyy-MM-dd');
@@ -840,9 +824,8 @@ function buildContext_() {
     settings: settings, holidays: holidays,
     holidaysThisMonth: holidaysThisMonth,
     todayIsHoliday: todayIsHoliday,
-    workingDaysElapsed: workingDaysElapsed,
-    workingDaysTotal: workingDaysTotal,
-    presentToday: presentToday,
+    onlineToday: onlineToday,
+    offlineToday: offlineToday,
     leaveToday: leaveToday,
     weeklyCompletedCount: weeklyCompletedCount,
     weeklyAchievementPct: weeklyAchievementPct,
@@ -858,6 +841,70 @@ function buildContext_() {
     empDaily: empDaily,
     byEmp: byEmp
   };
+}
+
+function createDailyRecord_(name, dateStr) {
+  return {
+    name: name,
+    date: dateStr,
+    sessions: [],
+    sessionCount: 0,
+    clockIn: null,
+    clockOut: null,
+    openSession: null,
+    hours: 0,
+    leave: null,
+    leaveNote: '',
+    isHoliday: false
+  };
+}
+
+function buildSessionsByEmployee_(punches) {
+  const grouped = {};
+  punches.forEach(function (p) {
+    if (!grouped[p.name]) grouped[p.name] = [];
+    grouped[p.name].push(p);
+  });
+
+  const sessionsByEmployee = {};
+  Object.keys(grouped).forEach(function (name) {
+    const events = grouped[name].slice().sort(function (a, b) { return a.ts - b.ts; });
+    const sessions = [];
+    let openIn = null;
+
+    events.forEach(function (p) {
+      if (p.action === 'Clock In') {
+        if (openIn) sessions.push({ clockIn: openIn, clockOut: null });
+        openIn = p.ts;
+      } else if (p.action === 'Clock Out' && openIn) {
+        sessions.push({ clockIn: openIn, clockOut: p.ts });
+        openIn = null;
+      }
+    });
+
+    if (openIn) sessions.push({ clockIn: openIn, clockOut: null });
+    sessionsByEmployee[name] = sessions;
+  });
+
+  return sessionsByEmployee;
+}
+
+function dateStringAddDays_(dateStr, days) {
+  const p = String(dateStr).split('-').map(Number);
+  const date = new Date(Date.UTC(p[0], p[1] - 1, p[2]));
+  date.setUTCDate(date.getUTCDate() + days);
+  return date.getUTCFullYear() + '-' + pad2_(date.getUTCMonth() + 1) + '-' + pad2_(date.getUTCDate());
+}
+
+function startOfDateInTimeZone_(dateStr, tz) {
+  const p = String(dateStr).split('-').map(Number);
+  const utcNoon = new Date(Date.UTC(p[0], p[1] - 1, p[2], 12, 0, 0));
+  const zone = Utilities.formatDate(utcNoon, tz, 'Z');
+  const match = String(zone).match(/^([+-])(\d{2})(\d{2})$/);
+  const offsetMinutes = match
+    ? (Number(match[2]) * 60 + Number(match[3])) * (match[1] === '-' ? -1 : 1)
+    : 0;
+  return new Date(Date.UTC(p[0], p[1] - 1, p[2]) - offsetMinutes * 60000);
 }
 
 function countWorkingDays_(year, month, workingDaysSet, holidaySet, tz, upToDate) {
@@ -1090,8 +1137,10 @@ function paintDashboard_(dash, ctx) {
   const kpiDefs = [
     { label: '📅  DATE', value: Utilities.formatDate(ctx.now, ctx.tz, 'EEE, d MMM'),
       bg: C.grayLight, fg: C.gray },
-    { label: '✅  PRESENT', value: ctx.presentToday + ' / ' + ctx.activeCount,
+    { label: '🟢  ONLINE', value: ctx.onlineToday + ' / ' + ctx.activeCount,
       bg: C.greenLight, fg: C.green },
+    { label: '⚪  OFFLINE', value: ctx.offlineToday + ' / ' + ctx.activeCount,
+      bg: C.grayLight, fg: C.gray },
     { label: '✅  PEOPLE COMPLETE', value: ctx.weeklyCompletedCount + ' / ' + ctx.activeCount,
       bg: ctx.weeklyCompletedCount > 0 ? C.greenLight : C.grayLight,
       fg: ctx.weeklyCompletedCount > 0 ? C.green : C.gray },
@@ -1100,10 +1149,7 @@ function paintDashboard_(dash, ctx) {
       fg: ctx.weeklyAchievementPct >= 100 ? C.green : C.amber },
     { label: '🌴  ON LEAVE', value: String(ctx.leaveToday),
       bg: ctx.leaveToday > 0 ? C.tealLight : C.grayLight,
-      fg: ctx.leaveToday > 0 ? C.teal : C.gray },
-    { label: '📆  WORKDAYS',
-      value: ctx.workingDaysElapsed + ' / ' + ctx.workingDaysTotal,
-      bg: C.blueLight, fg: C.blue }
+      fg: ctx.leaveToday > 0 ? C.teal : C.gray }
   ];
 
   dash.setRowHeight(r, 26);

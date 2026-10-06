@@ -248,6 +248,11 @@
     font-size:12.5px; font-weight:700; color:var(--teal-700);
   }
   .work-hours-badge svg{ width:14px; height:14px; }
+  .work-hours-badge.is-complete{
+    background:var(--green-100);
+    border-color:rgba(31,157,100,.2);
+    color:var(--green-600);
+  }
   .location-status{
     display:flex; align-items:center; gap:12px;
     padding:14px 16px;
@@ -825,7 +830,7 @@
             <circle cx="12" cy="12" r="10"/>
             <path d="M12 6v6l4 2"/>
           </svg>
-          <span id="workHoursText">Flexible hours · 45 hours required each week</span>
+          <span id="workHoursText">Weekly target: 45 hours - punch to see your remaining time</span>
         </div>
       </div>
 
@@ -1341,7 +1346,7 @@
     const weeklyTarget = Number(s.weeklyHoursTarget) || 45;
 
     if (workHoursText) {
-      workHoursText.textContent = 'Flexible hours · ' + weeklyTarget + ' hours required each week';
+      workHoursText.textContent = 'Weekly target: ' + weeklyTarget + ' hours - punch to see your remaining time';
     }
     if (workHoursBadge) workHoursBadge.hidden = false;
   }
@@ -1349,6 +1354,25 @@
   // ═════════════════════════════════════════════════════════════════════
   //  GPS
   // ═════════════════════════════════════════════════════════════════════
+  function updateWeeklyProgress(data) {
+    if (!workHoursText || !workHoursBadge || !data) return;
+
+    const target = Number(data.weeklyHoursTarget) || 45;
+    const worked = data.weeklyHoursWorkedLabel || '0m';
+    const remaining = data.weeklyHoursRemainingLabel || formatHoursLabel(target);
+    const complete = data.weeklyTargetMet === true;
+
+    workHoursText.textContent = complete
+      ? 'This week: ' + worked + ' - ' + target + '-hour target complete'
+      : 'This week: ' + worked + ' worked - ' + remaining + ' left to reach ' + target + ' hours';
+    workHoursBadge.hidden = false;
+    workHoursBadge.classList.toggle('is-complete', complete);
+  }
+
+  function formatHoursLabel(hours) {
+    return Math.floor(Number(hours) || 0) + 'h';
+  }
+
   function setLocationState(state, text) {
     locationStatus.className = 'location-status is-' + state;
     locationText.textContent = text;
@@ -1543,6 +1567,7 @@
       } else {
         clearLock(name);
         pinInput.value = '';
+        updateWeeklyProgress(res);
         showConfirmation(res);
       }
     } catch (err) {
@@ -1588,6 +1613,14 @@
       <div class="row"><span class="label">Location</span><span class="value">±${escapeHtml(acc)}</span></div>
       <div class="row"><span class="label">Map</span><span class="value"><a href="${escapeHtml(maps)}" target="_blank" rel="noopener" style="color:inherit;text-decoration:underline;">Open</a></span></div>
     `;
+    if (data.weeklyHoursRemainingLabel != null) {
+      const target = Number(data.weeklyHoursTarget) || 45;
+      const worked = data.weeklyHoursWorkedLabel || '0m';
+      const weeklyText = data.weeklyTargetMet === true
+        ? worked + ' worked - target complete'
+        : worked + ' worked - ' + (data.weeklyHoursRemainingLabel || formatHoursLabel(target)) + ' left to reach ' + target + ' hours';
+      rows += `<div class="row"><span class="label">Remaining this week</span><span class="value">${escapeHtml(weeklyText)}</span></div>`;
+    }
     okMeta.innerHTML = rows;
 
     $('okClose').textContent = 'Done';

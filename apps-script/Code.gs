@@ -404,6 +404,7 @@ function handlePunch_(body) {
   let statusLabel = '';
 
   SpreadsheetApp.flush();
+  const weeklyProgress = getEmployeeWeeklyProgress_(employee.name, settings.weeklyHoursTarget);
   try { scheduleDashboardRefresh(); } catch (e) { console.error('schedule failed:', e); }
 
   return {
@@ -418,13 +419,50 @@ function handlePunch_(body) {
     statusLabel: statusLabel,
     overtimeMinutes: 0,
     earlyMinutes: 0,
-    weeklyHoursTarget: settings.weeklyHoursTarget
+    weeklyHoursTarget: weeklyProgress.weeklyHoursTarget,
+    weeklyHoursWorked: weeklyProgress.weeklyHoursWorked,
+    weeklyHoursRemaining: weeklyProgress.weeklyHoursRemaining,
+    weeklyHoursWorkedLabel: weeklyProgress.weeklyHoursWorkedLabel,
+    weeklyHoursRemainingLabel: weeklyProgress.weeklyHoursRemainingLabel,
+    weeklyTargetMet: weeklyProgress.weeklyTargetMet
   };
 }
 
 // ═══════════════════════════════════════════════════════════════════════
 // Formatting helpers
 // ═══════════════════════════════════════════════════════════════════════
+// Return the current Monday-Sunday total used by the dashboard so the employee
+// sees the remaining time immediately after every successful punch.
+function getEmployeeWeeklyProgress_(employeeName, fallbackTarget) {
+  const fallback = Number(fallbackTarget) || 45;
+  try {
+    const ctx = buildContext_();
+    const target = Number(ctx && ctx.settings && ctx.settings.weeklyHoursTarget) || fallback;
+    const employee = ctx && ctx.byEmp ? ctx.byEmp[employeeName] : null;
+    const worked = employee ? Math.max(Number(employee.totalHours) || 0, 0) : 0;
+    const remaining = Math.max(target - worked, 0);
+
+    return {
+      weeklyHoursTarget: target,
+      weeklyHoursWorked: worked,
+      weeklyHoursRemaining: remaining,
+      weeklyHoursWorkedLabel: formatDuration_(worked * 60),
+      weeklyHoursRemainingLabel: formatDuration_(remaining * 60),
+      weeklyTargetMet: worked >= target
+    };
+  } catch (e) {
+    console.error('Weekly progress calculation failed:', e);
+    return {
+      weeklyHoursTarget: fallback,
+      weeklyHoursWorked: 0,
+      weeklyHoursRemaining: fallback,
+      weeklyHoursWorkedLabel: '0m',
+      weeklyHoursRemainingLabel: formatDuration_(fallback * 60),
+      weeklyTargetMet: false
+    };
+  }
+}
+
 function formatDuration_(mins) {
   mins = Math.round(mins);
   if (mins <= 0) return '0m';

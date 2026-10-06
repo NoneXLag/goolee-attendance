@@ -1146,12 +1146,12 @@ function paintDashboard_(dash, ctx) {
     { label: '✅  PEOPLE COMPLETE', value: ctx.weeklyCompletedCount + ' / ' + ctx.activeCount,
       bg: ctx.weeklyCompletedCount > 0 ? C.greenLight : C.grayLight,
       fg: ctx.weeklyCompletedCount > 0 ? C.green : C.gray },
-    { label: '🎯  ACHIEVED', value: ctx.weeklyAchievementPct + '%',
-      bg: ctx.weeklyAchievementPct >= 100 ? C.greenLight : C.amberLight,
-      fg: ctx.weeklyAchievementPct >= 100 ? C.green : C.amber },
     { label: '🌴  ON LEAVE', value: String(ctx.leaveToday),
       bg: ctx.leaveToday > 0 ? C.tealLight : C.grayLight,
-      fg: ctx.leaveToday > 0 ? C.teal : C.gray }
+      fg: ctx.leaveToday > 0 ? C.teal : C.gray },
+    { label: '🎯  ACHIEVED', value: ctx.weeklyAchievementPct + '%',
+      bg: ctx.weeklyAchievementPct >= 100 ? C.greenLight : C.amberLight,
+      fg: ctx.weeklyAchievementPct >= 100 ? C.green : C.amber }
   ];
 
   dash.setRowHeight(r, 26);

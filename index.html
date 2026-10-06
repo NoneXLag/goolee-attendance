@@ -677,6 +677,7 @@
   }
   .overlay-meta .row + .row{ border-top:1px solid var(--line); }
   .overlay-meta .label{ font-weight:600; color:var(--ink-400); }
+  .overlay-meta .label::after{ content:':'; margin-left:2px; }
   .overlay-meta .value{ font-weight:700; color:var(--ink-900); text-align:right; }
   .overlay-meta .value.is-amber{ color:var(--amber-600); }
   .overlay-meta .value.is-green{ color:var(--green-600); }
@@ -1557,6 +1558,12 @@
             '. Clock Out before starting another session.';
         } else if (res.reason === 'no_clock_in') {
           inlineText = 'No work session is open. Please Clock In first.';
+        } else if (res.reason === 'bad_gps') {
+          const actualAccuracy = currentPosition && currentPosition.accuracy != null
+            ? Math.round(currentPosition.accuracy) : null;
+          inlineText = actualAccuracy != null
+            ? 'Your phone reports GPS accuracy of ' + actualAccuracy + ' m. The limit is ' + CONFIG.ACCURACY_MAX_M + ' m. Move outdoors and try again.'
+            : (res.message || 'GPS accuracy was not available. Move outdoors and try again.');
         }
         showFormError(inlineText);
 
@@ -1565,7 +1572,7 @@
           'bad_pin','locked_out','bad_gps','unknown_employee'
         ];
         if (popupReasons.indexOf(res.reason) !== -1) {
-          showBlockedPopup(res.reason, res.message, res.existingTime);
+          showBlockedPopup(res.reason, inlineText, res.existingTime);
         }
       } else {
         clearLock(name);

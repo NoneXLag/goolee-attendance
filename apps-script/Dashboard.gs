@@ -183,6 +183,7 @@ function setupSettingsSheet() {
     ['Late After (min)',         '15',                 'Legacy only. Flexible punches are never marked late.'],
     ['Early Leave Grace (min)',  '15',                 'Legacy only. Flexible punches are never marked early.'],
     ['Minimum Weekly Hours',     '45',                 'Target hours per employee from Monday to Sunday.'],
+    ['GPS Accuracy Limit (m)',   '200',                'Maximum GPS uncertainty accepted for a punch.'],
     ['Company Name',             'Goolee',             'Shown in the dashboard title.']
   ];
   sheet.getRange(2, 1, rows.length, 3).setValues(rows);
@@ -205,7 +206,8 @@ function ensureSaturdaySettings_(sheet) {
     ['Saturday Working Day', 'TRUE', 'Saturday is a working day with its own hours. Set FALSE to disable.'],
     ['Saturday Work Start Time', '09:00', '24-hour format. Saturday only.'],
     ['Saturday Work End Time', '12:00', '24-hour format. Saturday only.'],
-    ['Minimum Weekly Hours', '45', 'Target hours per employee from Monday to Sunday.']
+    ['Minimum Weekly Hours', '45', 'Target hours per employee from Monday to Sunday.'],
+    ['GPS Accuracy Limit (m)', '200', 'Maximum GPS uncertainty accepted for a punch.']
   ].filter(function (row) { return keys.indexOf(row[0].toLowerCase()) < 0; });
   if (missing.length) {
     sheet.getRange(sheet.getLastRow() + 1, 1, missing.length, 3).setValues(missing);

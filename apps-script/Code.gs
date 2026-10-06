@@ -93,6 +93,7 @@ function getSettings_() {
     lateAfterMin:   15, // legacy setting; no longer used for attendance status
     earlyLeaveMin:  15, // legacy setting; no longer used for attendance status
     weeklyHoursTarget: 45,
+    gpsAccuracyMaxM: ACCURACY_MAX_M,
     companyName:    'Goolee'
   };
 
@@ -140,6 +141,9 @@ function getSettings_() {
           out.earlyLeaveMin = parseInt(val, 10) || 15;
         } else if (key === 'minimum weekly hours' || key === 'weekly hours target') {
           out.weeklyHoursTarget = Number(val) || 45;
+        } else if (key === 'gps accuracy limit (m)' || key === 'gps accuracy max (m)') {
+          const n = Number(val);
+          if (!isNaN(n) && n > 0) out.gpsAccuracyMaxM = n;
         } else if (key === 'company name') {
           out.companyName = val;
         }
@@ -150,6 +154,7 @@ function getSettings_() {
   }
 
   if (isNaN(out.weeklyHoursTarget) || out.weeklyHoursTarget <= 0) out.weeklyHoursTarget = 45;
+  if (isNaN(out.gpsAccuracyMaxM) || out.gpsAccuracyMaxM <= 0) out.gpsAccuracyMaxM = ACCURACY_MAX_M;
   if (out.saturdayWorkingDay && !/\bSat\b/i.test(out.workingDays)) {
     out.workingDays += ',Sat';
   }
@@ -346,9 +351,11 @@ function handlePunch_(body) {
     return { ok: false, reason: 'locked_out',
              message: 'Too many incorrect PIN attempts. Try again in a few minutes.' };
   }
-  if (isNaN(lat) || isNaN(lng) || isNaN(accuracy) || accuracy > ACCURACY_MAX_M) {
+  const settings = getSettings_();
+  const gpsAccuracyMaxM = Number(settings.gpsAccuracyMaxM) || ACCURACY_MAX_M;
+  if (isNaN(lat) || isNaN(lng) || isNaN(accuracy) || accuracy > gpsAccuracyMaxM) {
     return { ok: false, reason: 'bad_gps',
-             message: 'Location was missing or not accurate enough. Move outdoors and try again.' };
+             message: 'GPS accuracy must be at most ' + gpsAccuracyMaxM + ' m. Move outdoors and try again.' };
   }
 
   const employee = findEmployee_(name);
@@ -402,7 +409,6 @@ function handlePunch_(body) {
   ]]);
 
   // ── Time is flexible. Weekly hours are calculated by the dashboard. ──
-  const settings = getSettings_();
   let punchStatus = 'normal';
   let statusLabel = '';
 
@@ -418,6 +424,7 @@ function handlePunch_(body) {
     time: timeStr,
     mapsLink: mapsLink,
     accuracy: accuracy,
+    gpsAccuracyMaxM: gpsAccuracyMaxM,
     punchStatus: punchStatus,
     statusLabel: statusLabel,
     overtimeMinutes: 0,

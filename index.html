@@ -1305,7 +1305,7 @@
   // ═════════════════════════════════════════════════════════════════════
   //  SETTINGS
   // ═════════════════════════════════════════════════════════════════════
-  const SETTINGS_CACHE_KEY = 'goolee_settings_v1';
+  const SETTINGS_CACHE_KEY = 'goolee_settings_v2';
   const SETTINGS_CACHE_TTL = 10 * 60 * 1000;
 
   async function loadSettings() {
@@ -1336,6 +1336,7 @@
 
     settings = settings || {
       weeklyHoursTarget: 45,
+      gpsAccuracyMaxM: 200,
       saturdayWorkingDay: true,
       companyName: 'Goolee'
     };
@@ -1344,6 +1345,8 @@
 
   function applySettings(s) {
     const weeklyTarget = Number(s.weeklyHoursTarget) || 45;
+    const gpsAccuracyMaxM = Number(s.gpsAccuracyMaxM);
+    if (gpsAccuracyMaxM > 0) CONFIG.ACCURACY_MAX_M = gpsAccuracyMaxM;
 
     if (workHoursText) {
       workHoursText.textContent = 'Weekly target: ' + weeklyTarget + ' hours - punch to see your remaining time';

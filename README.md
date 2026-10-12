@@ -52,6 +52,14 @@ Employee phone (index.html)  →  HTTPS/JSONP  →  Google Apps Script (Code.gs 
 - Auth: employee name + 4-digit PIN (hashed)
 
 
+NOTIFICATIONS AND ARCHIVE
+-------------------------
+
+The attendance form includes an Enable button for browser notifications. After permission is granted, a confirmed Clock In or Clock Out shows a native notification with the employee, local date/time, and archive status. The on-screen confirmation remains available when notifications are unsupported or blocked.
+
+Every accepted punch is also copied to an append-only `Attendance Archive` sheet. It stores the timestamp, date, time, employee, action, map link, latitude, longitude, GPS accuracy, and the session duration in minutes when a Clock Out closes a session. The tab is created automatically by `setupDashboard` or on the first successful punch.
+
+
 PREREQUISITES
 -------------
 
@@ -293,6 +301,7 @@ goolee-attendance/
     └── Dashboard.gs    ← dashboard painter + menu
 
 The Google Sheet lives separately and contains:
+- Attendance Archive - auto-written append-only copy of accepted punches
 - Dashboard — auto-generated
 - Employees — you edit
 - Attendance — auto-written
@@ -313,6 +322,9 @@ Frontend
 - "Already Clocked In" → The current work session is still open, including a session started before midnight. Clock Out before starting another session.
 - Buttons stay grey → GPS is still locating. Wait for the green bar.
 - Names won't load → Deployment must be set to Who has access: Anyone.
+
+Notifications not appearing: tap `Enable` beside the attendance form and allow browser notifications. The on-screen confirmation still works if notifications are blocked.
+Archive missing: run `setupDashboard`, or submit one successful punch; the archive tab is created automatically.
 
 Backend (Apps Script)
 - "Missing sheet tab: X" → Create the missing tab with the exact name.

@@ -253,6 +253,25 @@
     border-color:rgba(31,157,100,.2);
     color:var(--green-600);
   }
+  .notification-control{
+    display:flex; align-items:center; gap:9px;
+    margin-top:12px; padding:9px 11px;
+    background:#fff; border:1px solid var(--line);
+    border-radius:var(--radius-sm);
+    color:var(--ink-500); font-size:12px; line-height:1.4;
+  }
+  .notification-control svg{ width:15px; height:15px; color:var(--teal-600); flex-shrink:0; }
+  .notification-control span{ flex:1; }
+  .notification-control button{
+    flex-shrink:0; padding:6px 10px;
+    border:1px solid var(--teal-600); border-radius:8px;
+    background:var(--teal-600); color:#fff;
+    font-family:inherit; font-size:11px; font-weight:700; line-height:1.2; cursor:pointer;
+  }
+  .notification-control button:hover{ background:var(--teal-700); }
+  .notification-control.is-enabled{ background:var(--green-100); border-color:rgba(31,157,100,.2); }
+  .notification-control.is-enabled svg{ color:var(--green-600); }
+  .notification-control.is-blocked{ background:var(--amber-100); border-color:rgba(182,122,15,.18); }
   .location-status{
     display:flex; align-items:center; gap:12px;
     padding:14px 16px;
@@ -833,6 +852,14 @@
           </svg>
           <span id="workHoursText">Weekly target: 45 hours - punch to see your remaining time</span>
         </div>
+        <div class="notification-control" id="notificationControl" role="status">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="M18 8a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9"/>
+            <path d="M10 21h4"/>
+          </svg>
+          <span id="notificationText">Enable notifications for clock-in and clock-out.</span>
+          <button type="button" id="enableNotificationsBtn">Enable</button>
+        </div>
       </div>
 
       <div id="locationStatus" class="location-status is-locating" role="status" aria-live="polite">
@@ -1039,6 +1066,9 @@
   const okMeta         = $('okMeta');
   const workHoursBadge = $('workHoursBadge');
   const workHoursText  = $('workHoursText');
+  const notificationControl = $('notificationControl');
+  const notificationText = $('notificationText');
+  const enableNotificationsBtn = $('enableNotificationsBtn');
 
   let currentPosition = null;
   let gpsAttempt = 0;
@@ -1107,6 +1137,68 @@
     const period = h >= 12 ? 'PM' : 'AM';
     const h12 = h % 12 || 12;
     return h12 + ':' + String(m).padStart(2, '0') + ' ' + period;
+  }
+
+  function updateNotificationUi() {
+    if (!notificationControl || !notificationText || !enableNotificationsBtn) return;
+
+    if (!('Notification' in window)) {
+      notificationControl.className = 'notification-control is-blocked';
+      notificationText.textContent = 'Browser notifications are not available; the on-screen confirmation will still appear.';
+      enableNotificationsBtn.hidden = true;
+      return;
+    }
+
+    if (Notification.permission === 'granted') {
+      notificationControl.className = 'notification-control is-enabled';
+      notificationText.textContent = 'Notifications are enabled for clock-in and clock-out.';
+      enableNotificationsBtn.hidden = true;
+    } else if (Notification.permission === 'denied') {
+      notificationControl.className = 'notification-control is-blocked';
+      notificationText.textContent = 'Notifications are blocked in this browser. You can still use the on-screen confirmation.';
+      enableNotificationsBtn.hidden = true;
+    } else {
+      notificationControl.className = 'notification-control';
+      notificationText.textContent = 'Enable notifications for clock-in and clock-out.';
+      enableNotificationsBtn.hidden = false;
+      enableNotificationsBtn.textContent = 'Enable';
+    }
+  }
+
+  async function enableNotifications() {
+    if (!('Notification' in window)) {
+      updateNotificationUi();
+      return;
+    }
+    try {
+      await Notification.requestPermission();
+    } catch (err) {
+      console.warn('Notification permission request failed:', err);
+    }
+    updateNotificationUi();
+  }
+
+  function sendPunchNotification(data) {
+    if (!('Notification' in window) || Notification.permission !== 'granted') return;
+
+    const action = data.punchType === 'Clock Out' ? 'Clock-out recorded' : 'Clock-in recorded';
+    const archiveMessage = data.archiveSaved === false
+      ? 'Saved to the attendance log.'
+      : 'Time and punch details archived.';
+    try {
+      const notice = new Notification(action, {
+        body: (data.name || 'Employee') + ' · ' + (data.date || '') + ' at ' + (data.time || '') + '\n' + archiveMessage,
+        icon: 'logo.png',
+        tag: 'goolee-attendance-punch',
+        renotify: true
+      });
+      notice.onclick = function () {
+        window.focus();
+        notice.close();
+      };
+    } catch (err) {
+      console.warn('Could not show punch notification:', err);
+    }
   }
 
   async function hashPin(pin) {
@@ -1508,6 +1600,7 @@
 
   clockInBtn.addEventListener('click',  () => submitPunch('Clock In'));
   clockOutBtn.addEventListener('click', () => submitPunch('Clock Out'));
+  enableNotificationsBtn.addEventListener('click', enableNotifications);
   pinInput.addEventListener('input', () => {
     pinInput.value = pinInput.value.replace(/[^0-9]/g, '').slice(0, 4);
   });
@@ -1585,6 +1678,7 @@
         pinInput.value = '';
         updateWeeklyProgress(res);
         showConfirmation(res);
+        sendPunchNotification(res);
       }
     } catch (err) {
       console.error('Punch failed:', err);
@@ -1629,6 +1723,10 @@
       <div class="row"><span class="label">Location</span><span class="value">±${escapeHtml(acc)}</span></div>
       <div class="row"><span class="label">Map</span><span class="value"><a href="${escapeHtml(maps)}" target="_blank" rel="noopener" style="color:inherit;text-decoration:underline;">Open</a></span></div>
     `;
+    if (data.sessionMinutes != null) {
+      rows += `<div class="row"><span class="label">Session</span><span class="value">${escapeHtml(data.sessionMinutes)} min</span></div>`;
+    }
+    rows += `<div class="row"><span class="label">Archive</span><span class="value">${data.archiveSaved === false ? 'Attendance log saved' : 'Time and details archived'}</span></div>`;
     if (data.weeklyHoursRemainingLabel != null) {
       const target = Number(data.weeklyHoursTarget) || 45;
       const worked = data.weeklyHoursWorkedLabel || '0m';
@@ -1690,6 +1788,8 @@
   overlay.addEventListener('click', e => {
     if (e.target === overlay) overlay.hidden = true;
   });
+
+  updateNotificationUi();
 
   // ═════════════════════════════════════════════════════════════════════
   //  BOOT

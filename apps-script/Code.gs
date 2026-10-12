@@ -19,6 +19,16 @@
 // ── Sheet tabs ──
 const EMPLOYEES_TAB  = 'Employees';
 const ATTENDANCE_TAB = 'Attendance';
+const ATTENDANCE_ARCHIVE_TAB = 'Attendance Archive';
+
+// The raw Attendance tab remains the live audit log. This separate archive
+// keeps a complete, human-readable copy of every accepted punch, including
+// GPS details and the duration closed by a Clock Out.
+const ATTENDANCE_ARCHIVE_HEADERS = [
+  'Archived At', 'Timestamp', 'Date', 'Time', 'Name', 'Action',
+  'Location (Google Maps)', 'Latitude', 'Longitude', 'Accuracy (m)',
+  'Session Minutes'
+];
 
 // ── Rules ──
 const ACCURACY_MAX_M      = 200;
@@ -28,7 +38,7 @@ const PIN_LOCKOUT_MINUTES = 5;
 // ── Cache keys (API-specific, prefixed to avoid Dashboard.gs clashes) ──
 const CACHE_EMPLOYEES_KEY      = 'goolee_employees_cache_v2';
 const CACHE_EMPLOYEES_FULL_KEY = 'goolee_employees_full_v2';
-const API_CACHE_SETTINGS_KEY   = 'goolee_settings_api_v3';
+const API_CACHE_SETTINGS_KEY   = 'goolee_settings_api_v4';
 const CACHE_EMPLOYEES_TTL      = 600;   // 10 min
 const API_CACHE_SETTINGS_TTL   = 600;   // 10 min
 
@@ -94,6 +104,7 @@ function getSettings_() {
     earlyLeaveMin:  15, // legacy setting; no longer used for attendance status
     weeklyHoursTarget: 45,
     gpsAccuracyMaxM: ACCURACY_MAX_M,
+    timeZone:        'Asia/Kuala_Lumpur',
     companyName:    'Goolee'
   };
 
@@ -144,6 +155,8 @@ function getSettings_() {
         } else if (key === 'gps accuracy limit (m)' || key === 'gps accuracy max (m)') {
           const n = Number(val);
           if (!isNaN(n) && n > 0) out.gpsAccuracyMaxM = n;
+        } else if (key === 'time zone' || key === 'timezone') {
+          out.timeZone = val;
         } else if (key === 'company name') {
           out.companyName = val;
         }
@@ -294,7 +307,12 @@ function clearFailure_(name) {
 function getTodayPunches_(employeeName, tz) {
   const sheet = sheet_(ATTENDANCE_TAB);
   const lastRow = sheet.getLastRow();
-  if (lastRow < 2) return { hasOpenSession: false, inTime: null, outTime: null, lastAction: null };
+  if (lastRow < 2) {
+    return {
+      hasOpenSession: false, inTime: null, outTime: null, lastAction: null,
+      inTimestamp: null, outTimestamp: null
+    };
+  }
 
   // Read the employee's complete punch history. A work session can cross
   // midnight, so filtering rows to today's date would incorrectly reset it.
@@ -329,8 +347,62 @@ function getTodayPunches_(employeeName, tz) {
     hasOpenSession: !!openIn,
     inTime: openIn ? Utilities.formatDate(openIn, tz, 'EEE, d MMM h:mm a') : null,
     outTime: lastOut ? Utilities.formatDate(lastOut, tz, 'EEE, d MMM h:mm a') : null,
-    lastAction: lastAction
+    lastAction: lastAction,
+    inTimestamp: openIn,
+    outTimestamp: lastOut
   };
+}
+
+/**
+ * Create the archive tab on demand so existing deployments do not need to
+ * recreate their spreadsheet before the next punch can be archived.
+ */
+function ensureAttendanceArchiveSheet_() {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  let sheet = ss.getSheetByName(ATTENDANCE_ARCHIVE_TAB);
+  if (!sheet) sheet = ss.insertSheet(ATTENDANCE_ARCHIVE_TAB);
+
+  const headerRange = sheet.getRange(1, 1, 1, ATTENDANCE_ARCHIVE_HEADERS.length);
+  const current = headerRange.getValues()[0];
+  const needsHeaders = ATTENDANCE_ARCHIVE_HEADERS.some(function (header, i) {
+    return String(current[i] || '').trim() !== header;
+  });
+  if (needsHeaders) {
+    headerRange.setValues([ATTENDANCE_ARCHIVE_HEADERS])
+      .setBackground('#0F4038')
+      .setFontColor('#FFFFFF')
+      .setFontWeight('bold')
+      .setHorizontalAlignment('center');
+    sheet.setFrozenRows(1);
+    sheet.setColumnWidths(1, ATTENDANCE_ARCHIVE_HEADERS.length, 135);
+    sheet.setColumnWidth(7, 250);
+    sheet.setColumnWidth(5, 180);
+    sheet.setColumnWidth(6, 110);
+  }
+  return sheet;
+}
+
+function archiveAttendancePunch_(record) {
+  const sheet = ensureAttendanceArchiveSheet_();
+  const row = sheet.getLastRow() + 1;
+  sheet.getRange(row, 1, 1, ATTENDANCE_ARCHIVE_HEADERS.length).setValues([[
+    record.now,
+    record.now,
+    record.date,
+    record.time,
+    record.name,
+    record.punchType,
+    '=HYPERLINK("' + record.mapsLink + '","Open in Maps")',
+    record.lat,
+    record.lng,
+    record.accuracy,
+    record.sessionMinutes === null || record.sessionMinutes === undefined
+      ? '' : record.sessionMinutes
+  ]]);
+  sheet.getRange(row, 1, 1, 2).setNumberFormat('yyyy-mm-dd hh:mm:ss');
+  sheet.getRange(row, 10, 1, 1).setNumberFormat('0.0');
+  sheet.getRange(row, 11, 1, 1).setNumberFormat('0');
+  return row;
 }
 
 // ═══════════════════════════════════════════════════════════════════════
@@ -373,40 +445,78 @@ function handlePunch_(body) {
   clearFailure_(name);
 
   const now = new Date();
-  const tz  = SpreadsheetApp.getActiveSpreadsheet().getSpreadsheetTimeZone();
+  const tz  = settings.timeZone || SpreadsheetApp.getActiveSpreadsheet().getSpreadsheetTimeZone();
   const dateStr = Utilities.formatDate(now, tz, 'yyyy-MM-dd');
   const timeStr = Utilities.formatDate(now, tz, 'HH:mm:ss');
 
   // ── Allow repeated sessions, but require an alternating In → Out sequence. ──
-  const existing = getTodayPunches_(employee.name, tz);
-
-  if (punchType === 'Clock In' && existing.hasOpenSession) {
-    return {
-      ok: false,
-      reason: 'already_clocked_in',
-      message: 'You are currently clocked in since ' + (existing.inTime || 'earlier') + '. Clock Out before starting another session.',
-      existingTime: existing.inTime
-    };
+  // Serialize the check and write so two fast taps/requests cannot both pass
+  // the open-session check and create duplicate punches.
+  const punchLock = LockService.getScriptLock();
+  if (!punchLock.tryLock(10000)) {
+    return { ok: false, reason: 'busy',
+             message: 'The attendance system is busy. Please try again.' };
   }
-  if (punchType === 'Clock Out') {
-    if (!existing.hasOpenSession) {
+
+  let mapsLink;
+  let sessionMinutes = null;
+  let archiveSaved = false;
+  try {
+    // Allow repeated sessions, but require an alternating In -> Out sequence.
+    const existing = getTodayPunches_(employee.name, tz);
+
+    if (punchType === 'Clock In' && existing.hasOpenSession) {
+      return {
+        ok: false,
+        reason: 'already_clocked_in',
+        message: 'You are currently clocked in since ' + (existing.inTime || 'earlier') + '. Clock Out before starting another session.',
+        existingTime: existing.inTime
+      };
+    }
+    if (punchType === 'Clock Out' && !existing.hasOpenSession) {
       return { ok: false, reason: 'no_clock_in',
                message: "You do not have an open work session. Please Clock In first." };
     }
-  }
 
-  const mapsLink = 'https://www.google.com/maps?q=' + lat + ',' + lng;
-  const sheet = sheet_(ATTENDANCE_TAB);
-  const row   = sheet.getLastRow() + 1;
-  sheet.getRange(row, 1, 1, 7).setValues([[
-    now,
-    employee.name,
-    punchType,
-    '=HYPERLINK("' + mapsLink + '","Open in Maps")',
-    accuracy,
-    dateStr,
-    timeStr
-  ]]);
+    if (punchType === 'Clock Out' && existing.inTimestamp instanceof Date) {
+      sessionMinutes = Math.max(0, Math.round((now - existing.inTimestamp) / 60000));
+    }
+
+    mapsLink = 'https://www.google.com/maps?q=' + lat + ',' + lng;
+    const sheet = sheet_(ATTENDANCE_TAB);
+    const row   = sheet.getLastRow() + 1;
+    sheet.getRange(row, 1, 1, 7).setValues([[
+      now,
+      employee.name,
+      punchType,
+      '=HYPERLINK("' + mapsLink + '","Open in Maps")',
+      accuracy,
+      dateStr,
+      timeStr
+    ]]);
+
+    // Keep a second, complete archive with the exact event details. If an
+    // older deployment has no archive tab, the helper creates it here.
+    try {
+      archiveAttendancePunch_({
+        now: now,
+        date: dateStr,
+        time: timeStr,
+        name: employee.name,
+        punchType: punchType,
+        mapsLink: mapsLink,
+        lat: lat,
+        lng: lng,
+        accuracy: accuracy,
+        sessionMinutes: sessionMinutes
+      });
+      archiveSaved = true;
+    } catch (archiveError) {
+      console.error('Attendance archive failed:', archiveError);
+    }
+  } finally {
+    punchLock.releaseLock();
+  }
 
   // ── Time is flexible. Weekly hours are calculated by the dashboard. ──
   let punchStatus = 'normal';
@@ -424,6 +534,8 @@ function handlePunch_(body) {
     time: timeStr,
     mapsLink: mapsLink,
     accuracy: accuracy,
+    sessionMinutes: sessionMinutes,
+    archiveSaved: archiveSaved,
     gpsAccuracyMaxM: gpsAccuracyMaxM,
     punchStatus: punchStatus,
     statusLabel: statusLabel,

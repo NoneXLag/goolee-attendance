@@ -30,8 +30,8 @@ const LOG_DAYS_BACK     = 14;
 const EMP_LOG_DAYS_BACK = 30;
 
 // ── Cache keys ──
-const CACHE_SETTINGS_KEY = 'goolee_settings_v4';
-const CACHE_HOLIDAYS_KEY = 'goolee_holidays_v2';
+const CACHE_SETTINGS_KEY = 'goolee_settings_v5';
+const CACHE_HOLIDAYS_KEY = 'goolee_holidays_v3';
 const CACHE_CONFIG_TTL   = 1800;
 
 // ── Leave types ──
@@ -80,6 +80,7 @@ function onOpen() {
     .addItem('📝  Open Leave Sheet',             'openLeaveSheet')
     .addItem('🔄  Refresh Leave Dropdown',       'refreshLeaveDropdown')
     .addItem('🎉  Open Holidays Sheet',          'openHolidaysSheet')
+    .addItem('🗃️  Open Attendance Archive',     'openAttendanceArchive')
     .addItem('⚙️  Open Settings Sheet',          'openSettingsSheet')
     .addSeparator()
     .addItem('🧹  Clear all caches',             'clearAllCaches')
@@ -113,6 +114,13 @@ function openSettingsSheet() {
   ss.setActiveSheet(sheet);
 }
 
+function openAttendanceArchive() {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  let sheet = ss.getSheetByName(ATTENDANCE_ARCHIVE_TAB);
+  if (!sheet) sheet = ensureAttendanceArchiveSheet_();
+  ss.setActiveSheet(sheet);
+}
+
 // ════════════════════════════════════════════════════════════════════
 //  SETUP
 // ════════════════════════════════════════════════════════════════════
@@ -123,6 +131,7 @@ function setupDashboard() {
   setupLeaveSheet();
   setupHolidaysSheet();
   setupSettingsSheet();
+  ensureAttendanceArchiveSheet_();
 
   let dash = ss.getSheetByName(SHEET_DASHBOARD);
   if (dash) {
@@ -147,7 +156,7 @@ function setupDashboard() {
 
   ui.alert(
     '✅ Dashboard created.\n\n' +
-    'Sheets: Settings · Holidays · Leave · Dashboard · <employee tabs>'
+    'Sheets: Settings · Holidays · Leave · Attendance Archive · Dashboard · <employee tabs>'
   );
 }
 
@@ -184,6 +193,7 @@ function setupSettingsSheet() {
     ['Early Leave Grace (min)',  '15',                 'Legacy only. Flexible punches are never marked early.'],
     ['Minimum Weekly Hours',     '45',                 'Target hours per employee from Monday to Sunday.'],
     ['GPS Accuracy Limit (m)',   '200',                'Maximum GPS uncertainty accepted for a punch.'],
+    ['Time Zone',                'Asia/Kuala_Lumpur',  'Timezone used for timestamps and the Monday 12:00 AM weekly reset.'],
     ['Company Name',             'Goolee',             'Shown in the dashboard title.']
   ];
   sheet.getRange(2, 1, rows.length, 3).setValues(rows);
@@ -207,7 +217,8 @@ function ensureSaturdaySettings_(sheet) {
     ['Saturday Work Start Time', '09:00', '24-hour format. Saturday only.'],
     ['Saturday Work End Time', '12:00', '24-hour format. Saturday only.'],
     ['Minimum Weekly Hours', '45', 'Target hours per employee from Monday to Sunday.'],
-    ['GPS Accuracy Limit (m)', '200', 'Maximum GPS uncertainty accepted for a punch.']
+    ['GPS Accuracy Limit (m)', '200', 'Maximum GPS uncertainty accepted for a punch.'],
+    ['Time Zone', 'Asia/Kuala_Lumpur', 'Timezone used for timestamps and the Monday 12:00 AM weekly reset.']
   ].filter(function (row) { return keys.indexOf(row[0].toLowerCase()) < 0; });
   if (missing.length) {
     sheet.getRange(sheet.getLastRow() + 1, 1, missing.length, 3).setValues(missing);
@@ -441,6 +452,7 @@ function readSettings_() {
     lateAfterMin:   DEFAULT_LATE_AFTER_MIN,
     earlyLeaveMin:  DEFAULT_EARLY_LEAVE_MIN,
     weeklyHoursTarget: DEFAULT_WEEKLY_HOURS_TARGET,
+    timeZone:        'Asia/Kuala_Lumpur',
     companyName:    'Goolee'
   };
 
@@ -482,6 +494,8 @@ function readSettings_() {
         const n = Number(val); if (!isNaN(n)) out.earlyLeaveMin = n;
       } else if (key === 'minimum weekly hours' || key === 'weekly hours target') {
         const n = Number(val); if (!isNaN(n) && n > 0) out.weeklyHoursTarget = n;
+      } else if (key === 'time zone' || key === 'timezone') {
+        out.timeZone = val;
       } else if (key === 'company name') {
         out.companyName = val;
       }
@@ -549,7 +563,8 @@ function readHolidays_() {
     return [];
   }
 
-  const tz = ss.getSpreadsheetTimeZone();
+  const settings = readSettings_();
+  const tz = settings.timeZone || ss.getSpreadsheetTimeZone();
   const lastRow = sheet.getLastRow();
   const values = sheet.getRange(1, 1, lastRow, 3).getValues();
 
@@ -587,8 +602,8 @@ function buildContext_() {
     return null;
   }
 
-  const tz = ss.getSpreadsheetTimeZone();
   const settings = readSettings_();
+  const tz = settings.timeZone || ss.getSpreadsheetTimeZone();
   const holidays = readHolidays_();
   const holidaySet = new Set();
   holidays.forEach(h => holidaySet.add(h.date));
@@ -603,6 +618,7 @@ function buildContext_() {
     const isActive = active === true || String(active).trim().toUpperCase() === 'TRUE';
     if (isActive) activeEmployees.push(name);
   }
+  const activeEmployeeSet = new Set(activeEmployees);
 
   // Punches
   const attLastRow = attSheet.getLastRow();
@@ -700,8 +716,12 @@ function buildContext_() {
   const todayRecords = dailyList.filter(r => r.date === todayStr);
 
   const todayIsHoliday = holidaySet.has(todayStr);
-  const onlineToday = todayRecords.filter(r => r.openSession).length;
-  const leaveToday   = todayRecords.filter(r => r.leave && !r.clockIn).length;
+  const onlineToday = todayRecords.filter(function (r) {
+    return activeEmployeeSet.has(r.name) && r.openSession;
+  }).length;
+  const leaveToday = todayRecords.filter(function (r) {
+    return activeEmployeeSet.has(r.name) && r.leave && !r.clockIn;
+  }).length;
   const offlineToday = Math.max(activeEmployees.length - onlineToday - leaveToday, 0);
 
   const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
@@ -715,6 +735,7 @@ function buildContext_() {
   const currentWeekStart = weekStartStr_(todayStr);
   const weeklyMap = {};
   dailyList.forEach(function (r) {
+    if (!activeEmployeeSet.has(r.name)) return;
     const weekStart = weekStartStr_(r.date);
     const key = r.name + '|' + weekStart;
     if (!weeklyMap[key]) {
@@ -814,12 +835,16 @@ function buildContext_() {
   const cutoff = new Date();
   cutoff.setDate(cutoff.getDate() - LOG_DAYS_BACK);
   const cutoffStr = Utilities.formatDate(cutoff, tz, 'yyyy-MM-dd');
-  const recentDaily = dailyList.filter(r => r.date >= cutoffStr);
+  const recentDaily = dailyList.filter(function (r) {
+    return activeEmployeeSet.has(r.name) && r.date >= cutoffStr;
+  });
 
   const empCutoff = new Date();
   empCutoff.setDate(empCutoff.getDate() - EMP_LOG_DAYS_BACK);
   const empCutoffStr = Utilities.formatDate(empCutoff, tz, 'yyyy-MM-dd');
-  const empDaily = dailyList.filter(r => r.date >= empCutoffStr);
+  const empDaily = dailyList.filter(function (r) {
+    return activeEmployeeSet.has(r.name) && r.date >= empCutoffStr;
+  });
 
   return {
     tz: tz, now: now, todayStr: todayStr,
@@ -876,7 +901,10 @@ function buildSessionsByEmployee_(punches) {
 
     events.forEach(function (p) {
       if (p.action === 'Clock In') {
-        if (openIn) sessions.push({ clockIn: openIn, clockOut: null });
+        // A valid worker sequence is In -> Out -> In -> Out. If old data
+        // contains another Clock In before Clock Out, discard the orphaned
+        // open record and start a clean session so it cannot accumulate
+        // several days of duplicate hours.
         openIn = p.ts;
       } else if (p.action === 'Clock Out' && openIn) {
         sessions.push({ clockIn: openIn, clockOut: p.ts });
@@ -923,6 +951,8 @@ function countWorkingDays_(year, month, workingDaysSet, holidaySet, tz, upToDate
 }
 
 function weekStartStr_(dateStr) {
+  // Attendance weeks are Monday 00:00 through Sunday 23:59
+  // in the configured attendance timezone. The caller supplies the local date.
   const p = String(dateStr).split('-').map(Number);
   const utc = new Date(Date.UTC(p[0], p[1] - 1, p[2]));
   const mondayOffset = (utc.getUTCDay() + 6) % 7;
@@ -950,7 +980,8 @@ function readLeaves_() {
   const sheet = ss.getSheetByName(SHEET_LEAVE);
   if (!sheet || sheet.getLastRow() < 2) return [];
 
-  const tz = ss.getSpreadsheetTimeZone();
+  const settings = readSettings_();
+  const tz = settings.timeZone || ss.getSpreadsheetTimeZone();
   const lastRow = sheet.getLastRow();
   const values = sheet.getRange(1, 1, lastRow, 4).getValues();
 
@@ -1194,13 +1225,13 @@ function paintDashboard_(dash, ctx) {
   r++;
 
   dash.setRowHeight(r, 32);
-  dash.getRange(r, 1, 1, 6).setValues([[
-    'EMPLOYEE', 'CLOCK IN', 'CLOCK OUT', 'HOURS', 'LEAVE', 'STATUS'
+  dash.getRange(r, 1, 1, 7).setValues([[
+    'EMPLOYEE', 'CLOCK IN', 'CLOCK OUT', 'HOURS', 'LEAVE', 'STATUS', 'ONLINE / OFFLINE'
   ]]);
   dash.getRange(r, 1, 1, DASH_TOTAL_COLS)
     .setBackground(C.grayLight)
     .setBorder(true, true, true, true, null, null, C.border, SpreadsheetApp.BorderStyle.SOLID);
-  dash.getRange(r, 1, 1, 6)
+  dash.getRange(r, 1, 1, 7)
     .setFontColor(C.tealDark).setFontSize(10).setFontWeight('bold')
     .setHorizontalAlignment('center').setVerticalAlignment('middle');
   r++;
@@ -1224,9 +1255,10 @@ function paintDashboard_(dash, ctx) {
       const leaveLabel = emp.leave
         ? leaveColor_(emp.leave).icon + ' ' + emp.leave : '—';
       const status = todayStatusFor_(emp, ctx);
+      const onlineText = emp.openSession ? 'ONLINE' : 'OFFLINE';
 
-      dash.getRange(r, 1, 1, 6).setValues([[
-        emp.name, ci, co, hoursLabel, leaveLabel, status.text
+      dash.getRange(r, 1, 1, 7).setValues([[
+        emp.name, ci, co, hoursLabel, leaveLabel, status.text, onlineText
       ]]);
 
       const altBg = (i % 2 === 0) ? C.white : C.grayLight;
@@ -1250,6 +1282,11 @@ function paintDashboard_(dash, ctx) {
 
       dash.getRange(r, 6)
         .setBackground(status.bg).setFontColor(status.fg)
+        .setFontWeight('bold').setHorizontalAlignment('center');
+
+      dash.getRange(r, 7)
+        .setBackground(emp.openSession ? C.greenLight : C.grayLight)
+        .setFontColor(emp.openSession ? C.green : C.gray)
         .setFontWeight('bold').setHorizontalAlignment('center');
 
       r++;
@@ -1320,8 +1357,9 @@ function paintDashboard_(dash, ctx) {
 
   dash.setRowHeight(r, 34);
   dash.getRange(r, 1, 1, DASH_TOTAL_COLS).setValues([[
-    'EMPLOYEE', 'HOURS THIS WEEK', 'TARGET', 'REMAINING', 'SESSIONS',
-    'DAYS WORKED', 'OPEN SESSIONS', 'STATUS', 'LAST ACTION', 'LAST PUNCH', '', ''
+    'EMPLOYEE', 'HOURS THIS WEEK', 'TARGET', 'REMAINING', 'WEEK %',
+    'SESSIONS', 'DAYS WORKED', 'OPEN SESSIONS', 'WEEKLY STATUS',
+    'ONLINE / OFFLINE', 'LAST ACTION', 'LAST PUNCH'
   ]]);
   dash.getRange(r, 1, 1, DASH_TOTAL_COLS)
     .setBackground(C.grayLight).setFontColor(C.tealDark)
@@ -1346,19 +1384,24 @@ function paintDashboard_(dash, ctx) {
       const totalHours = Number(emp.totalHours) || 0;
       const targetHours = Number(s.weeklyHoursTarget) || DEFAULT_WEEKLY_HOURS_TARGET;
       const remainingHours = Math.max(targetHours - totalHours, 0);
-      const statusText = totalHours >= targetHours
+      const targetMet = totalHours >= targetHours;
+      const completionPct = targetHours > 0
+        ? Math.min(Math.round((totalHours / targetHours) * 100), 100) : 0;
+      const online = (Number(emp.openSessions) || 0) > 0;
+      const statusText = targetMet
         ? '✅ Target met'
         : '⏳ ' + formatHoursMinutes_(remainingHours) + ' remaining';
       const lastAction = emp.lastAction || '—';
+      const onlineText = online ? 'ONLINE' : 'OFFLINE';
       const lastPunch = emp.lastTs
         ? Utilities.formatDate(emp.lastTs, ctx.tz, 'd MMM · h:mm a')
         : '—';
 
       dash.getRange(r, 1, 1, DASH_TOTAL_COLS).setValues([[
         emp.name, formatHoursMinutes_(totalHours), targetHours + ' h',
-        formatHoursMinutes_(remainingHours), emp.sessionCount || 0,
-        emp.daysPresent || 0, emp.openSessions || 0, statusText,
-        lastAction, lastPunch, '', ''
+        formatHoursMinutes_(remainingHours), completionPct + '%',
+        emp.sessionCount || 0, emp.daysPresent || 0, emp.openSessions || 0,
+        statusText, onlineText, lastAction, lastPunch
       ]]);
 
       const altBg = (i % 2 === 0) ? C.white : C.grayLight;
@@ -1369,12 +1412,20 @@ function paintDashboard_(dash, ctx) {
 
       dash.getRange(r, 1).setHorizontalAlignment('left')
         .setFontWeight('bold').setFontColor(C.tealDark);
-      dash.getRange(r, 2, 1, 7).setHorizontalAlignment('center');
-      dash.getRange(r, 9, 1, 2).setFontColor(C.gray).setFontSize(10)
+      dash.getRange(r, 2, 1, 9).setHorizontalAlignment('center');
+      dash.getRange(r, 11, 1, 2).setFontColor(C.gray).setFontSize(10)
         .setHorizontalAlignment('center');
 
-      dash.getRange(r, 8).setBackground(totalHours >= targetHours ? C.greenLight : C.amberLight)
-        .setFontColor(totalHours >= targetHours ? C.green : C.amber)
+      dash.getRange(r, 5).setBackground(targetMet ? C.greenLight : C.amberLight)
+        .setFontColor(targetMet ? C.green : C.amber)
+        .setFontWeight('bold').setHorizontalAlignment('center');
+
+      dash.getRange(r, 9).setBackground(targetMet ? C.greenLight : C.amberLight)
+        .setFontColor(targetMet ? C.green : C.amber)
+        .setFontWeight('bold').setHorizontalAlignment('center');
+
+      dash.getRange(r, 10).setBackground(online ? C.greenLight : C.grayLight)
+        .setFontColor(online ? C.green : C.gray)
         .setFontWeight('bold').setHorizontalAlignment('center');
 
       r++;
@@ -1568,7 +1619,12 @@ function refreshEmployeeTabs_(ctx) {
   const props = PropertiesService.getScriptProperties();
 
   const attSheet = ss.getSheetByName(SHEET_ATTENDANCE);
-  const sig = attSheet.getLastRow() + '|' + ctx.activeEmployees.length;
+  const progressSig = ctx.employeeRows.map(function (employee) {
+    return employee.name + ':' + Math.round((Number(employee.totalHours) || 0) * 60) +
+      ':' + (Number(employee.openSessions) || 0);
+  }).join('|');
+  const sig = attSheet.getLastRow() + '|' + ctx.activeEmployees.length + '|' +
+    ctx.currentWeekStart + '|' + progressSig;
   const lastSig = props.getProperty('employee_tabs_sig');
 
   if (lastSig === sig) {
@@ -1591,7 +1647,8 @@ function refreshEmployeeTabs_(ctx) {
     const n = sheet.getName();
     if (n === SHEET_DASHBOARD || n === SHEET_ATTENDANCE ||
         n === SHEET_EMPLOYEES || n === SHEET_LEAVE ||
-        n === SHEET_SETTINGS || n === SHEET_HOLIDAYS) return;
+        n === SHEET_SETTINGS || n === SHEET_HOLIDAYS ||
+        n === ATTENDANCE_ARCHIVE_TAB) return;
 
     const isActive = ctx.activeEmployees.some(function (e) {
       return sanitizeTabName_(e) === n;
@@ -1634,6 +1691,7 @@ function paintEmployeeTab_(sheet, empName, ctx) {
   const weeklyRemaining = Math.max(weeklyTarget - (Number(emp.totalHours) || 0), 0);
   const personalWeeks = ctx.weeklyHistory.filter(function (w) { return w.name === empName; });
   const personalDaily = ctx.empDaily.filter(function (r) { return r.name === empName; });
+  const currentStatusText = (Number(emp.openSessions) || 0) > 0 ? 'ONLINE' : 'OFFLINE';
 
   const TOTAL_COLS = 6;
   [190, 145, 145, 145, 155, 155].forEach(function (w, i) {
@@ -1717,6 +1775,14 @@ function paintEmployeeTab_(sheet, empName, ctx) {
     .setBackground(C.grayLight);
   r++;
 
+  sheet.setRowHeight(r, 28);
+  sheet.getRange(r, 1, 1, TOTAL_COLS).merge()
+    .setValue('Current status: ' + currentStatusText)
+    .setBackground(currentStatusText === 'ONLINE' ? C.greenLight : C.grayLight)
+    .setFontColor(currentStatusText === 'ONLINE' ? C.green : C.gray)
+    .setFontWeight('bold').setHorizontalAlignment('center').setVerticalAlignment('middle');
+  r++;
+
   sheet.setRowHeight(r, 14);
   r++;
 
@@ -1782,6 +1848,8 @@ function paintEmployeeTab_(sheet, empName, ctx) {
   sheet.getRange(r, 1, 1, 5)
     .setFontColor(C.tealDark).setFontSize(10).setFontWeight('bold')
     .setHorizontalAlignment('center').setVerticalAlignment('middle');
+  sheet.getRange(r, 2).setBackground(C.greenLight).setFontColor(C.green);
+  sheet.getRange(r, 3).setBackground(C.blueLight).setFontColor(C.blue);
   r++;
 
   if (personalDaily.length === 0) {
@@ -1821,6 +1889,8 @@ function paintEmployeeTab_(sheet, empName, ctx) {
 
       sheet.getRange(r, 1).setFontColor(C.gray).setHorizontalAlignment('center');
       sheet.getRange(r, 2, 1, 3).setHorizontalAlignment('center');
+      sheet.getRange(r, 2).setFontColor(C.green).setFontWeight('bold');
+      sheet.getRange(r, 3).setFontColor(C.blue).setFontWeight('bold');
       sheet.getRange(r, 5).setBackground(statusColors.bg)
         .setFontColor(statusColors.fg).setFontWeight('bold').setHorizontalAlignment('center');
 
@@ -1841,7 +1911,9 @@ function paintEmployeeTab_(sheet, empName, ctx) {
     .setFontColor(C.gray).setFontSize(10).setFontStyle('italic')
     .setHorizontalAlignment('center').setVerticalAlignment('middle');
 
-  sheet.setTabColor(Number(emp.totalHours) >= weeklyTarget ? C.green : C.teal);
+  // Red means the employee still has hours remaining this week. Green means
+  // the Monday-Sunday target has been reached.
+  sheet.setTabColor(Number(emp.totalHours) >= weeklyTarget ? C.green : C.red);
 }
 
 function sanitizeTabName_(name) {
